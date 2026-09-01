@@ -93,7 +93,6 @@ function createPDFChunks(text, chunkSize = 1000) {
 
 function findRelevantChunks(query, chunks, maxChunks = 2) {
 
-    // Make sure query is actually text
     if (typeof query !== "string") {
         console.error("RAG Error: query must be a string:", query);
         return [];
@@ -103,16 +102,22 @@ function findRelevantChunks(query, chunks, maxChunks = 2) {
         return [];
     }
 
+    // Convert question into important words
     const queryWords = query
         .toLowerCase()
         .split(/\W+/)
         .filter(word => word.length > 2);
 
+    if (queryWords.length === 0) {
+        return [];
+    }
+
     const scoredChunks = chunks.map((chunk, index) => {
 
         const chunkWords = chunk
             .toLowerCase()
-            .split(/\W+/);
+            .split(/\W+/)
+            .filter(word => word.length > 2);
 
         let score = 0;
 
@@ -124,15 +129,26 @@ function findRelevantChunks(query, chunks, maxChunks = 2) {
 
         });
 
+        // Calculate percentage similarity
+        const similarity =
+            score / queryWords.length;
+
         return {
             index: index,
             text: chunk,
-            score: score
+            score: score,
+            similarity: similarity
         };
     });
 
-    scoredChunks.sort((a, b) => b.score - a.score);
 
+    // Highest similarity first
+    scoredChunks.sort(
+        (a, b) => b.similarity - a.similarity
+    );
+
+
+    // Return only useful chunks
     return scoredChunks
         .filter(chunk => chunk.score > 0)
         .slice(0, maxChunks);
@@ -251,10 +267,22 @@ async function sendMessage() {
             2
         );
 
-        console.log("========== RAG ==========");
-        console.log("User question:", text);
-        console.log("Relevant chunks:", relevantChunks);
-        console.log("=========================");
+       console.log("========== RAG ==========");
+console.log("User question:", text);
+console.log("Total PDF chunks:", pdfChunks.length);
+
+relevantChunks.forEach(chunk => {
+
+    console.log(
+        `Chunk ${chunk.index + 1} | ` +
+        `Score: ${chunk.score} | ` +
+        `Similarity: ${(chunk.similarity * 100).toFixed(1)}%`
+    );
+
+});
+
+console.log("Retrieved chunks:", relevantChunks);
+console.log("=========================");
 
 
         if (relevantChunks.length > 0) {
