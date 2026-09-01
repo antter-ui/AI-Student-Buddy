@@ -30,7 +30,12 @@ const pdfPreview = document.getElementById("pdfPreview");
 const summarizeBtn = document.getElementById("summarizeBtn");
 const quizBtn = document.getElementById("quizBtn");
 const quizContainer = document.getElementById("quizContainer");
-// Planner elements
+
+
+// ===============================
+// PLANNER ELEMENTS
+// ===============================
+
 const subjectInput = document.getElementById("subject");
 const examDateInput = document.getElementById("examDate");
 const topicsInput = document.getElementById("topics");
@@ -38,12 +43,100 @@ const studyHoursInput = document.getElementById("studyHours");
 const priorityInput = document.getElementById("priority");
 const generatePlanBtn = document.getElementById("generatePlanBtn");
 const plannerResult = document.getElementById("plannerResult");
+
 const progressSection = document.getElementById("progressSection");
 const progressContainer = document.getElementById("progressContainer");
-progressSection.style.display = "none";
 
+if (progressSection) {
+    progressSection.style.display = "none";
+}
+
+
+// ===============================
+// PDF VARIABLES
+// ===============================
 
 let pdfText = "";
+let pdfChunks = [];
+
+
+// ===============================
+// PDF TEXT CHUNKING
+// ===============================
+
+function createPDFChunks(text, chunkSize = 1000) {
+
+    const words = text
+        .split(/\s+/)
+        .filter(word => word.trim() !== "");
+
+    const chunks = [];
+
+    for (let i = 0; i < words.length; i += chunkSize) {
+
+        const chunk = words
+            .slice(i, i + chunkSize)
+            .join(" ");
+
+        if (chunk.trim() !== "") {
+            chunks.push(chunk);
+        }
+    }
+
+    return chunks;
+}
+
+
+// ===============================
+// FIND RELEVANT PDF CHUNKS
+// ===============================
+
+function findRelevantChunks(query, chunks, maxChunks = 2) {
+
+    // Make sure query is actually text
+    if (typeof query !== "string") {
+        console.error("RAG Error: query must be a string:", query);
+        return [];
+    }
+
+    if (!Array.isArray(chunks) || chunks.length === 0) {
+        return [];
+    }
+
+    const queryWords = query
+        .toLowerCase()
+        .split(/\W+/)
+        .filter(word => word.length > 2);
+
+    const scoredChunks = chunks.map((chunk, index) => {
+
+        const chunkWords = chunk
+            .toLowerCase()
+            .split(/\W+/);
+
+        let score = 0;
+
+        queryWords.forEach(word => {
+
+            if (chunkWords.includes(word)) {
+                score++;
+            }
+
+        });
+
+        return {
+            index: index,
+            text: chunk,
+            score: score
+        };
+    });
+
+    scoredChunks.sort((a, b) => b.score - a.score);
+
+    return scoredChunks
+        .filter(chunk => chunk.score > 0)
+        .slice(0, maxChunks);
+}
 
 
 // ===============================
@@ -71,15 +164,10 @@ function typeMessage(element, text) {
             clearInterval(interval);
 
             if (typeof marked !== "undefined") {
-
                 element.innerHTML = marked.parse(text);
-
             } else {
-
                 element.textContent = text;
-
             }
-
         }
 
     }, speed);
@@ -92,6 +180,7 @@ function typeMessage(element, text) {
 
 async function sendMessage() {
 
+    // Get the actual text from the input
     const text = promptInput.value.trim();
 
     if (text === "") {
@@ -116,7 +205,10 @@ async function sendMessage() {
     promptInput.value = "";
 
 
-    // Add user message to conversation
+    // ===============================
+    // ADD USER MESSAGE TO MEMORY
+    // ===============================
+
     conversation.push({
         role: "user",
         content: text
@@ -145,27 +237,68 @@ async function sendMessage() {
     let messagesToSend = [...conversation];
 
 
-    if (pdfText.trim() !== "") {
+    // ===============================
+    // RAG PDF RETRIEVAL
+    // ===============================
 
-        messagesToSend.splice(1, 0, {
+    if (pdfChunks.length > 0) {
 
-            role: "system",
+        // IMPORTANT:
+        // Use "text", not the DOM element "userMessage"
+        const relevantChunks = findRelevantChunks(
+            text,
+            pdfChunks,
+            2
+        );
 
-            content: `The user has uploaded study notes.
+        console.log("========== RAG ==========");
+        console.log("User question:", text);
+        console.log("Relevant chunks:", relevantChunks);
+        console.log("=========================");
 
-Use these notes as the primary source when answering questions.
+
+        if (relevantChunks.length > 0) {
+
+            const retrievedText = relevantChunks
+                .map(chunk => chunk.text)
+                .join("\n\n");
+
+
+            messagesToSend.splice(1, 0, {
+
+                role: "system",
+
+                content: `
+Use the following relevant sections from the uploaded study notes
+to answer the student's question.
 
 IMPORTANT:
-- Answer using the uploaded notes whenever possible.
+- Answer using the provided notes.
 - Do not invent information.
-- If the answer is not present in the notes, clearly say that the information is not available in the uploaded notes.
+- If the answer cannot be found in these retrieved sections,
+  clearly say that the information is not available in the uploaded notes.
 
-UPLOADED NOTES:
+Retrieved study notes:
 
-${pdfText}`
+${retrievedText}
+`
+            });
 
-        });
+        } else {
 
+            messagesToSend.splice(1, 0, {
+
+                role: "system",
+
+                content: `
+The uploaded study notes do not contain information relevant
+to the student's question.
+
+Clearly tell the student that the answer is not available
+in the uploaded notes.
+`
+            });
+        }
     }
 
 
@@ -178,17 +311,11 @@ ${pdfText}`
         const response = await fetch(
             "https://openrouter.ai/api/v1/chat/completions",
             {
-
                 method: "POST",
 
                 headers: {
-
-                    "Authorization":
-                        `Bearer ${API_KEY}`,
-
-                    "Content-Type":
-                        "application/json"
-
+                    "Authorization": `Bearer ${API_KEY}`,
+                    "Content-Type": "application/json"
                 },
 
                 body: JSON.stringify({
@@ -198,7 +325,6 @@ ${pdfText}`
                     messages: messagesToSend
 
                 })
-
             }
         );
 
@@ -215,7 +341,6 @@ ${pdfText}`
                 data.error?.message ||
                 "API request failed"
             );
-
         }
 
 
@@ -228,7 +353,6 @@ ${pdfText}`
             throw new Error(
                 "No AI response received"
             );
-
         }
 
 
@@ -358,6 +482,9 @@ pdfUpload.addEventListener(
             pdfPreview.innerText =
                 "Your extracted notes will appear here.";
 
+            pdfText = "";
+            pdfChunks = [];
+
             return;
 
         }
@@ -368,6 +495,9 @@ pdfUpload.addEventListener(
 
             fileName.innerText =
                 "❌ Please select a PDF file.";
+
+            pdfText = "";
+            pdfChunks = [];
 
             return;
 
@@ -448,6 +578,20 @@ pdfUpload.addEventListener(
 
 
             // ===============================
+            // CREATE PDF CHUNKS
+            // ===============================
+
+            pdfChunks =
+                createPDFChunks(pdfText);
+
+
+            console.log(
+                "PDF chunks created:",
+                pdfChunks.length
+            );
+
+
+            // ===============================
             // UPDATE FILE NAME
             // ===============================
 
@@ -495,6 +639,9 @@ pdfUpload.addEventListener(
                 "PDF ERROR:",
                 error
             );
+
+            pdfText = "";
+            pdfChunks = [];
 
             fileName.innerText =
                 "❌ Could not read this PDF.";
@@ -617,17 +764,14 @@ ${pdfText}`
                 await fetch(
                     "https://openrouter.ai/api/v1/chat/completions",
                     {
-
                         method: "POST",
 
                         headers: {
-
                             "Authorization":
                                 `Bearer ${API_KEY}`,
 
                             "Content-Type":
                                 "application/json"
-
                         },
 
                         body: JSON.stringify({
@@ -831,17 +975,14 @@ ${pdfText}`
                 await fetch(
                     "https://openrouter.ai/api/v1/chat/completions",
                     {
-
                         method: "POST",
 
                         headers: {
-
                             "Authorization":
                                 `Bearer ${API_KEY}`,
 
                             "Content-Type":
                                 "application/json"
-
                         },
 
                         body: JSON.stringify({
@@ -1339,32 +1480,58 @@ function calculateQuizScore() {
 
 }
 
+
 // =========================
 // STUDY PLANNER
 // =========================
 
 async function generateStudyPlan() {
 
-    const subject = subjectInput.value.trim();
-    const examDate = examDateInput.value;
-    const topics = topicsInput.value.trim();
-    const studyHours = studyHoursInput.value;
-    const priority = priorityInput.value;
+    const subject =
+        subjectInput.value.trim();
+
+    const examDate =
+        examDateInput.value;
+
+    const topics =
+        topicsInput.value.trim();
+
+    const studyHours =
+        studyHoursInput.value;
+
+    const priority =
+        priorityInput.value;
+
 
     // Validate input
-    if (!subject || !examDate || !topics || !studyHours) {
-        alert("Please fill in all planner fields.");
+    if (
+        !subject ||
+        !examDate ||
+        !topics ||
+        !studyHours
+    ) {
+
+        alert(
+            "Please fill in all planner fields."
+        );
+
         return;
     }
 
-    generatePlanBtn.disabled = true;
-    generatePlanBtn.textContent = "🤖 Generating Plan...";
+
+    generatePlanBtn.disabled =
+        true;
+
+    generatePlanBtn.textContent =
+        "🤖 Generating Plan...";
+
 
     plannerResult.innerHTML = `
         <div class="loading">
             Creating your personalized study plan...
         </div>
     `;
+
 
     const plannerPrompt = `
 Create a personalized study plan for an engineering student.
@@ -1385,190 +1552,383 @@ Requirements:
 - Keep the workload realistic.
 - Use clear headings and bullet points.
 - Do not invent topics that were not provided.
+
+Priority rules:
+- If priority is "high", give more revision and exam-practice time.
+- If priority is "weak", allocate more time to difficult/weak topics.
+- If priority is "balanced", distribute study time evenly.
 `;
+
 
     try {
 
-        const response = await fetch(
-            "https://openrouter.ai/api/v1/chat/completions",
-            {
-                method: "POST",
+        const response =
+            await fetch(
+                "https://openrouter.ai/api/v1/chat/completions",
+                {
+                    method: "POST",
 
-                headers: {
-                    "Authorization": `Bearer ${API_KEY}`,
-                    "Content-Type": "application/json"
-                },
+                    headers: {
+                        "Authorization":
+                            `Bearer ${API_KEY}`,
 
-                body: JSON.stringify({
-                    model: "openai/gpt-oss-20b",
-                    messages: [
-                        {
-                            role: "system",
-                            content: "You are an expert academic study planner. Create realistic and structured study schedules for engineering students."
-                        },
-                        {
-                            role: "user",
-                            content: plannerPrompt
-                        }
-                    ]
-                })
-            }
-        );
+                        "Content-Type":
+                            "application/json"
+                    },
 
-        const data = await response.json();
+                    body: JSON.stringify({
+
+                        model:
+                            "openai/gpt-oss-20b",
+
+                        messages: [
+
+                            {
+                                role: "system",
+
+                                content:
+                                    "You are an expert academic study planner. Create realistic and structured study schedules for engineering students."
+                            },
+
+                            {
+                                role: "user",
+
+                                content:
+                                    plannerPrompt
+                            }
+
+                        ]
+
+                    })
+
+                }
+            );
+
+
+        const data =
+            await response.json();
+
 
         if (!response.ok) {
+
             throw new Error(
-                data.error?.message || "Failed to generate study plan."
+                data.error?.message ||
+                "Failed to generate study plan."
             );
+
         }
 
-        if (!data.choices || !data.choices[0]) {
-            throw new Error("No response received from AI.");
+
+        if (
+            !data.choices ||
+            !data.choices[0]
+        ) {
+
+            throw new Error(
+                "No response received from AI."
+            );
+
         }
 
-        const plan = data.choices[0].message.content;
+
+        const plan =
+            data.choices[0].message.content;
+
 
         plannerResult.innerHTML = `
             <div class="plan-output">
                 ${marked.parse(plan)}
             </div>
         `;
-        createProgressTracker();    
 
-    } catch (error) {
 
-        console.error("Planner Error:", error);
+        createProgressTracker();
+
+    }
+
+
+    catch (error) {
+
+        console.error(
+            "Planner Error:",
+            error
+        );
+
 
         plannerResult.innerHTML = `
             <div class="plan-output">
-                <strong>❌ Error:</strong> 
+                <strong>❌ Error:</strong>
                 ${error.message}
             </div>
         `;
 
-    } finally {
-
-        generatePlanBtn.disabled = false;
-        generatePlanBtn.textContent = "🤖 Generate Study Plan";
     }
+
+
+    finally {
+
+        generatePlanBtn.disabled =
+            false;
+
+        generatePlanBtn.textContent =
+            "🤖 Generate Study Plan";
+
+    }
+
 }
-generatePlanBtn.addEventListener("click", generateStudyPlan);
+
+
+generatePlanBtn.addEventListener(
+    "click",
+    generateStudyPlan
+);
+
 
 // =========================
 // STUDY PROGRESS TRACKING
 // =========================
 
-let topicProgress = {};
+let topicProgress =
+    JSON.parse(
+        localStorage.getItem(
+            "studyProgress"
+        )
+    ) || {};
+
 
 function createProgressTracker() {
 
-    const topicsText = topicsInput.value.trim();
+    const topicsText =
+        topicsInput.value.trim();
+
 
     if (!topicsText) {
         return;
     }
 
-    const topics = topicsText
-        .split(",")
-        .map(topic => topic.trim())
-        .filter(topic => topic !== "");
 
-    progressSection.style.display = "block";
+    const topics =
+        topicsText
+            .split(",")
+            .map(
+                topic => topic.trim()
+            )
+            .filter(
+                topic => topic !== ""
+            );
 
-    progressContainer.innerHTML = "";
 
-    topics.forEach((topic, index) => {
+    if (!progressSection) {
+        return;
+    }
 
-        if (topicProgress[topic] === undefined) {
-            topicProgress[topic] = 0;
+
+    progressSection.style.display =
+        "block";
+
+
+    progressContainer.innerHTML =
+        "";
+
+
+    topics.forEach(
+        (topic, index) => {
+
+            if (
+                topicProgress[topic] ===
+                undefined
+            ) {
+
+                topicProgress[topic] = 0;
+
+            }
+
+
+            const progressItem =
+                document.createElement(
+                    "div"
+                );
+
+
+            progressItem.className =
+                "progress-item";
+
+
+            progressItem.innerHTML = `
+
+                <div class="progress-topic">
+
+                    <span>
+                        ${topic}
+                    </span>
+
+                    <select
+                        class="progress-select"
+                        data-topic="${index}"
+                    >
+
+                        <option value="0">
+                            Not Started
+                        </option>
+
+                        <option value="50">
+                            In Progress
+                        </option>
+
+                        <option value="100">
+                            Completed
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <div class="topic-progress-bar">
+
+                    <div
+                        class="topic-progress-fill"
+                        id="topicProgress${index}"
+                    ></div>
+
+                </div>
+
+            `;
+
+
+            progressContainer.appendChild(
+                progressItem
+            );
+
+
+            const select =
+                progressItem.querySelector(
+                    ".progress-select"
+                );
+
+
+            select.value =
+                topicProgress[topic];
+
+
+            select.addEventListener(
+                "change",
+                function () {
+
+                    topicProgress[topic] =
+                        Number(this.value);
+
+
+                    // Save progress
+                    localStorage.setItem(
+                        "studyProgress",
+                        JSON.stringify(
+                            topicProgress
+                        )
+                    );
+
+
+                    updateProgress();
+
+                }
+            );
+
+
+            updateTopicProgress(
+                index,
+                topicProgress[topic]
+            );
+
         }
-
-        const progressItem = document.createElement("div");
-
-        progressItem.className = "progress-item";
-
-        progressItem.innerHTML = `
-            <div class="progress-topic">
-                <span>${topic}</span>
-
-                <select 
-                    class="progress-select"
-                    data-topic="${index}"
-                >
-                    <option value="0">Not Started</option>
-                    <option value="50">In Progress</option>
-                    <option value="100">Completed</option>
-                </select>
-            </div>
-
-            <div class="topic-progress-bar">
-                <div 
-                    class="topic-progress-fill"
-                    id="topicProgress${index}"
-                ></div>
-            </div>
-        `;
-
-        progressContainer.appendChild(progressItem);
-
-        const select = progressItem.querySelector(".progress-select");
-
-        select.value = topicProgress[topic];
-
-        select.addEventListener("change", function () {
-
-            topicProgress[topic] = Number(this.value);
-
-            updateProgress();
-        });
-
-        updateTopicProgress(index, topicProgress[topic]);
-    });
-
-    updateProgress();
-}
-
-function updateTopicProgress(index, value) {
-
-    const progressBar = document.getElementById(
-        `topicProgress${index}`
     );
 
-    if (progressBar) {
-        progressBar.style.width = `${value}%`;
-    }
+
+    updateProgress();
+
 }
+
+
+// =========================
+// UPDATE TOPIC PROGRESS
+// =========================
+
+function updateTopicProgress(
+    index,
+    value
+) {
+
+    const progressBar =
+        document.getElementById(
+            `topicProgress${index}`
+        );
+
+
+    if (progressBar) {
+
+        progressBar.style.width =
+            `${value}%`;
+
+    }
+
+}
+
+
+// =========================
+// UPDATE OVERALL PROGRESS
+// =========================
 
 function updateProgress() {
 
-    const values = Object.values(topicProgress);
+    const values =
+        Object.values(
+            topicProgress
+        );
+
 
     if (values.length === 0) {
         return;
     }
 
-    const total = values.reduce(
-        (sum, value) => sum + value,
-        0
-    );
 
-    const average = Math.round(
-        total / values.length
-    );
-
-    document.getElementById(
-        "progressPercentage"
-    ).textContent = `${average}%`;
-
-    document.getElementById(
-        "overallProgressBar"
-    ).style.width = `${average}%`;
-
-    Object.keys(topicProgress).forEach((topic, index) => {
-        updateTopicProgress(
-            index,
-            topicProgress[topic]
+    const total =
+        values.reduce(
+            (sum, value) =>
+                sum + value,
+            0
         );
-    });
+
+
+    const average =
+        Math.round(
+            total / values.length
+        );
+
+
+    const progressPercentage =
+        document.getElementById(
+            "progressPercentage"
+        );
+
+
+    const overallProgressBar =
+        document.getElementById(
+            "overallProgressBar"
+        );
+
+
+    if (progressPercentage) {
+
+        progressPercentage.textContent =
+            `${average}%`;
+
+    }
+
+
+    if (overallProgressBar) {
+
+        overallProgressBar.style.width =
+            `${average}%`;
+
+    }
+
 }
