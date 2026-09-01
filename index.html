@@ -1,56 +1,209 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>StudyMate AI</title>
 
-    <link rel="stylesheet" href="style.css" />
-  </head>
+    <link rel="stylesheet" href="style.css">
 
-  <body>
+</head>
+
+
+<body>
+
     <div class="container">
-      <!-- Sidebar -->
-      <aside class="sidebar">
-        <div class="logo">🎓</div>
 
-        <h2>AI Student Buddy</h2>
 
-        <button class="nav-btn active">💬 Chat</button>
-        <button class="nav-btn">📄 Notes</button>
-        <button class="nav-btn">📝 Quiz</button>
-        <button class="nav-btn">📅 Planner</button>
-      </aside>
+        <!-- =========================
+             SIDEBAR
+        ========================== -->
 
-      <!-- Main Content -->
-      <main class="content">
-        <div class="welcome-card">
-          <h1>Welcome Vedant 👋</h1>
-          <p>Ready to ace your exams?.</p>
-        </div>
+        <aside class="sidebar">
 
-        <div class="chat-card">
-          <button id="clearChat" class="clear-btn">🗑️ Clear Chat</button>
-
-          <div id="messages" class="messages">
-            <div class="message ai">
-              Hi! Ask me anything about your studies.
+            <div class="logo">
+                🎓
             </div>
-          </div>
 
-          <div class="input-area">
-            <input type="text" id="prompt" placeholder="Ask anything..." />
+            <h2>AI Student Buddy</h2>
 
-            <button id="send">Send</button>
-          </div>
-        </div>
-      </main>
+            <button class="nav-btn active">
+                💬 Chat
+            </button>
+
+            <button class="nav-btn">
+                📄 Notes
+            </button>
+
+            <button class="nav-btn">
+                📝 Quiz
+            </button>
+
+            <button class="nav-btn">
+                📅 Planner
+            </button>
+
+        </aside>
+
+
+
+        <!-- =========================
+             MAIN CONTENT
+        ========================== -->
+
+        <main class="content">
+
+
+            <!-- =========================
+                 WELCOME CARD
+            ========================== -->
+
+            <div class="welcome-card">
+
+                <h1>
+                    Welcome Vedant 👋
+                </h1>
+
+                <p>
+                    Ready to ace your exams?
+                </p>
+
+            </div>
+
+
+
+            <!-- =========================
+                 NOTES CARD
+            ========================== -->
+
+            <div class="notes-card">
+
+                <h2>
+                    📄 Study Notes
+                </h2>
+
+                <p>
+                    Upload your study notes and let AI help you understand them.
+                </p>
+
+
+                <div class="upload-area">
+
+    <input
+        type="file"
+        id="pdfUpload"
+        accept=".pdf"
+    >
+
+    <label
+        for="pdfUpload"
+        class="upload-btn"
+    >
+        📄 Choose PDF
+    </label>
+
+    <p id="fileName">
+        No file selected
+    </p>
+
+    <div id="pdfPreview" class="pdf-preview">
+        Your extracted notes will appear here.
     </div>
 
+    <div class="notes-actions">
+
+    <button id="summarizeBtn" class="notes-action-btn">
+        ✨ Summarize Notes
+    </button>
+
+    <button id="quizBtn" class="notes-action-btn">
+        📝 Generate Quiz
+    </button>
+
+</div>
+<div id="quizContainer" class="quiz-container"></div>
+
+            <!-- =========================
+                 CHAT CARD
+            ========================== -->
+
+            <div class="chat-card">
+
+
+                <button
+                    id="clearChat"
+                    class="clear-btn"
+                >
+                    🗑️ Clear Chat
+                </button>
+
+
+                <div
+                    id="messages"
+                    class="messages"
+                >
+
+                    <div class="message ai">
+
+                        Hi! 👋 Ask me anything about your studies.
+
+                    </div>
+
+                </div>
+
+
+
+                <!-- INPUT AREA -->
+
+                <div class="input-area">
+
+                    <input
+                        type="text"
+                        id="prompt"
+                        placeholder="Ask anything..."
+                    >
+
+
+                    <button id="send">
+                        Send
+                    </button>
+
+                </div>
+
+
+            </div>
+
+
+        </main>
+
+    </div>
+
+
+
+    <!-- =========================
+         JAVASCRIPT LIBRARIES
+    ========================== -->
+
+    <!-- API KEY -->
     <script src="config.js"></script>
 
+
+    <!-- Markdown Parser -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
+
+    <!-- PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+
+    <!-- OUR JAVASCRIPT -->
     <script src="script.js"></script>
-  </body>
+
+
+</body>
+
 </html>
