@@ -125,6 +125,86 @@
     </button>
 
 </div>
+<!-- Study Planner -->
+<div class="planner-card">
+    <h2>📅 Study Planner</h2>
+    <p>Create a personalized study plan with AI.</p>
+
+    <div class="planner-form">
+
+        <div class="form-group">
+            <label for="subject">Subject</label>
+            <input 
+                type="text" 
+                id="subject" 
+                placeholder="e.g. Data Structures"
+            >
+        </div>
+
+        <div class="form-group">
+            <label for="examDate">Exam Date</label>
+            <input 
+                type="date" 
+                id="examDate"
+            >
+        </div>
+
+        <div class="form-group">
+            <label for="topics">Topics / Chapters</label>
+            <textarea 
+                id="topics" 
+                placeholder="e.g. Arrays, Linked Lists, Stacks, Queues, Trees"
+                rows="4"
+            ></textarea>
+        </div>
+
+        <div class="form-group">
+    <label for="priority">Priority</label>
+
+    <select id="priority">
+        <option value="balanced">Balanced</option>
+        <option value="high">High - Exam is close</option>
+        <option value="weak">Focus on Weak Topics</option>
+    </select>
+</div>
+
+        <div class="form-group">
+            <label for="studyHours">Study Hours Per Day</label>
+            <input 
+                type="number" 
+                id="studyHours" 
+                placeholder="e.g. 3"
+                min="1"
+                max="12"
+            >
+        </div>
+
+        <button id="generatePlanBtn" class="planner-btn">
+            🤖 Generate Study Plan
+        </button>
+
+    </div>
+
+    <div id="plannerResult" class="planner-result"></div>
+    <div id="progressSection" class="progress-section">
+
+    <h3>📊 Study Progress</h3>
+
+    <div id="progressContainer"></div>
+
+    <div class="overall-progress">
+        <div class="progress-header">
+            <span>Overall Progress</span>
+            <span id="progressPercentage">0%</span>
+        </div>
+
+        <div class="progress-bar">
+            <div id="overallProgressBar"></div>
+        </div>
+    </div>
+
+</div>
+</div>
 <div id="quizContainer" class="quiz-container"></div>
 
             <!-- =========================

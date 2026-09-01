@@ -30,6 +30,18 @@ const pdfPreview = document.getElementById("pdfPreview");
 const summarizeBtn = document.getElementById("summarizeBtn");
 const quizBtn = document.getElementById("quizBtn");
 const quizContainer = document.getElementById("quizContainer");
+// Planner elements
+const subjectInput = document.getElementById("subject");
+const examDateInput = document.getElementById("examDate");
+const topicsInput = document.getElementById("topics");
+const studyHoursInput = document.getElementById("studyHours");
+const priorityInput = document.getElementById("priority");
+const generatePlanBtn = document.getElementById("generatePlanBtn");
+const plannerResult = document.getElementById("plannerResult");
+const progressSection = document.getElementById("progressSection");
+const progressContainer = document.getElementById("progressContainer");
+progressSection.style.display = "none";
+
 
 let pdfText = "";
 
@@ -1325,4 +1337,238 @@ function calculateQuizScore() {
         }
     );
 
+}
+
+// =========================
+// STUDY PLANNER
+// =========================
+
+async function generateStudyPlan() {
+
+    const subject = subjectInput.value.trim();
+    const examDate = examDateInput.value;
+    const topics = topicsInput.value.trim();
+    const studyHours = studyHoursInput.value;
+    const priority = priorityInput.value;
+
+    // Validate input
+    if (!subject || !examDate || !topics || !studyHours) {
+        alert("Please fill in all planner fields.");
+        return;
+    }
+
+    generatePlanBtn.disabled = true;
+    generatePlanBtn.textContent = "🤖 Generating Plan...";
+
+    plannerResult.innerHTML = `
+        <div class="loading">
+            Creating your personalized study plan...
+        </div>
+    `;
+
+    const plannerPrompt = `
+Create a personalized study plan for an engineering student.
+
+Subject: ${subject}
+Exam Date: ${examDate}
+Topics: ${topics}
+Study hours available per day: ${studyHours}
+Priority: ${priority}
+
+Create a realistic day-by-day study plan from today until the exam date.
+
+Requirements:
+- Divide the topics across the available days.
+- Respect the student's available study hours per day.
+- Give extra revision time before the exam.
+- Include practice/revision sessions.
+- Keep the workload realistic.
+- Use clear headings and bullet points.
+- Do not invent topics that were not provided.
+`;
+
+    try {
+
+        const response = await fetch(
+            "https://openrouter.ai/api/v1/chat/completions",
+            {
+                method: "POST",
+
+                headers: {
+                    "Authorization": `Bearer ${API_KEY}`,
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify({
+                    model: "openai/gpt-oss-20b",
+                    messages: [
+                        {
+                            role: "system",
+                            content: "You are an expert academic study planner. Create realistic and structured study schedules for engineering students."
+                        },
+                        {
+                            role: "user",
+                            content: plannerPrompt
+                        }
+                    ]
+                })
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(
+                data.error?.message || "Failed to generate study plan."
+            );
+        }
+
+        if (!data.choices || !data.choices[0]) {
+            throw new Error("No response received from AI.");
+        }
+
+        const plan = data.choices[0].message.content;
+
+        plannerResult.innerHTML = `
+            <div class="plan-output">
+                ${marked.parse(plan)}
+            </div>
+        `;
+        createProgressTracker();    
+
+    } catch (error) {
+
+        console.error("Planner Error:", error);
+
+        plannerResult.innerHTML = `
+            <div class="plan-output">
+                <strong>❌ Error:</strong> 
+                ${error.message}
+            </div>
+        `;
+
+    } finally {
+
+        generatePlanBtn.disabled = false;
+        generatePlanBtn.textContent = "🤖 Generate Study Plan";
+    }
+}
+generatePlanBtn.addEventListener("click", generateStudyPlan);
+
+// =========================
+// STUDY PROGRESS TRACKING
+// =========================
+
+let topicProgress = {};
+
+function createProgressTracker() {
+
+    const topicsText = topicsInput.value.trim();
+
+    if (!topicsText) {
+        return;
+    }
+
+    const topics = topicsText
+        .split(",")
+        .map(topic => topic.trim())
+        .filter(topic => topic !== "");
+
+    progressSection.style.display = "block";
+
+    progressContainer.innerHTML = "";
+
+    topics.forEach((topic, index) => {
+
+        if (topicProgress[topic] === undefined) {
+            topicProgress[topic] = 0;
+        }
+
+        const progressItem = document.createElement("div");
+
+        progressItem.className = "progress-item";
+
+        progressItem.innerHTML = `
+            <div class="progress-topic">
+                <span>${topic}</span>
+
+                <select 
+                    class="progress-select"
+                    data-topic="${index}"
+                >
+                    <option value="0">Not Started</option>
+                    <option value="50">In Progress</option>
+                    <option value="100">Completed</option>
+                </select>
+            </div>
+
+            <div class="topic-progress-bar">
+                <div 
+                    class="topic-progress-fill"
+                    id="topicProgress${index}"
+                ></div>
+            </div>
+        `;
+
+        progressContainer.appendChild(progressItem);
+
+        const select = progressItem.querySelector(".progress-select");
+
+        select.value = topicProgress[topic];
+
+        select.addEventListener("change", function () {
+
+            topicProgress[topic] = Number(this.value);
+
+            updateProgress();
+        });
+
+        updateTopicProgress(index, topicProgress[topic]);
+    });
+
+    updateProgress();
+}
+
+function updateTopicProgress(index, value) {
+
+    const progressBar = document.getElementById(
+        `topicProgress${index}`
+    );
+
+    if (progressBar) {
+        progressBar.style.width = `${value}%`;
+    }
+}
+
+function updateProgress() {
+
+    const values = Object.values(topicProgress);
+
+    if (values.length === 0) {
+        return;
+    }
+
+    const total = values.reduce(
+        (sum, value) => sum + value,
+        0
+    );
+
+    const average = Math.round(
+        total / values.length
+    );
+
+    document.getElementById(
+        "progressPercentage"
+    ).textContent = `${average}%`;
+
+    document.getElementById(
+        "overallProgressBar"
+    ).style.width = `${average}%`;
+
+    Object.keys(topicProgress).forEach((topic, index) => {
+        updateTopicProgress(
+            index,
+            topicProgress[topic]
+        );
+    });
 }
