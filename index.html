@@ -1,289 +1,479 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 
 <head>
-
     <meta charset="UTF-8">
-
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StudyMate AI — Next-Gen AI Academic Assistant</title>
+    <meta name="description" content="Intelligent AI study buddy for engineering students. Semantic PDF search, automated quizzes, study planning and personalized exam prep.">
 
-    <title>StudyMate AI</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
+    <!-- Stylesheet -->
     <link rel="stylesheet" href="style.css">
     <link rel="icon" type="image/x-icon" href="favicon.ico">
-
 </head>
-
 
 <body>
 
+    <!-- Ambient background glow spots -->
+    <div class="bg-glow-1" aria-hidden="true"></div>
+    <div class="bg-glow-2" aria-hidden="true"></div>
+
     <div class="container">
 
-
         <!-- =========================
-             SIDEBAR
+             SIDEBAR NAVIGATION
         ========================== -->
-
         <aside class="sidebar">
 
-            <div class="logo">
-                🎓
+            <div class="sidebar-header">
+                <div class="logo">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+                        <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+                    </svg>
+                </div>
+                <div class="sidebar-branding">
+                    <h2>StudyMate AI</h2>
+                </div>
             </div>
 
-            <h2>AI Student Buddy</h2>
+            <div class="nav-label">Workspace</div>
 
-            <button class="nav-btn active">
-                💬 Chat
-            </button>
+            <nav class="nav-menu">
+                <button id="chatNav" class="nav-btn active">
+                    <span class="nav-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>
+                        </svg>
+                    </span>
+                    <span>AI Assistant</span>
+                    <span class="nav-pill">Chat</span>
+                </button>
 
-            <button class="nav-btn">
-                📄 Notes
-            </button>
+                <button id="notesNav" class="nav-btn">
+                    <span class="nav-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                            <polyline points="10 9 9 9 8 9"/>
+                        </svg>
+                    </span>
+                    <span>Study Notes</span>
+                    <span class="nav-pill">PDF</span>
+                </button>
 
-            <button class="nav-btn">
-                📝 Quiz
-            </button>
+                <button id="quizNav" class="nav-btn">
+                    <span class="nav-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                            <line x1="12" y1="17" x2="12.01" y2="17"/>
+                        </svg>
+                    </span>
+                    <span>Quiz Arena</span>
+                    <span class="nav-pill">Test</span>
+                </button>
 
-            <button class="nav-btn">
-                📅 Planner
-            </button>
+                <button id="plannerNav" class="nav-btn">
+                    <span class="nav-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                            <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
+                            <line x1="16" y1="2" x2="16" y2="6"/>
+                            <line x1="8" y1="2" x2="8" y2="6"/>
+                            <line x1="3" y1="10" x2="21" y2="10"/>
+                        </svg>
+                    </span>
+                    <span>Study Planner</span>
+                    <span class="nav-pill">Plan</span>
+                </button>
+            </nav>
+
+            <!-- User Widget -->
+            <div class="sidebar-footer">
+                <div class="user-avatar">
+                    V
+                    <span class="status-dot"></span>
+                </div>
+                <div class="user-info">
+                    <div class="user-name">Vedant</div>
+                    <div class="user-role">Engineering Student</div>
+                </div>
+            </div>
 
         </aside>
 
-
-
         <!-- =========================
-             MAIN CONTENT
+             MAIN VIEWPORT
         ========================== -->
-
         <main class="content">
 
+            <!-- Top Application Bar -->
+            <header class="top-bar">
+                <div class="breadcrumbs">
+                    <span>StudyMate</span>
+                    <span>/</span>
+                    <span id="activeSectionBreadcrumb" class="current">AI Assistant</span>
+                </div>
+
+                <div class="top-actions">
+                    <div class="badge-ai-status">
+                        <span class="pulsing-dot"></span>
+                        <span>OpenRouter AI Active</span>
+                    </div>
+
+                    <button id="themeToggleBtn" class="theme-toggle-btn" title="Toggle Theme" aria-label="Toggle Theme">
+                        <svg id="themeMoonIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                        </svg>
+                        <svg id="themeSunIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                            <circle cx="12" cy="12" r="5"></circle>
+                            <line x1="12" y1="1" x2="12" y2="3"></line>
+                            <line x1="12" y1="21" x2="12" y2="23"></line>
+                            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                            <line x1="1" y1="12" x2="3" y2="12"></line>
+                            <line x1="21" y1="12" x2="23" y2="12"></line>
+                            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                        </svg>
+                    </button>
+                </div>
+            </header>
 
             <!-- =========================
-                 WELCOME CARD
+                 WELCOME HERO CARD
             ========================== -->
+            <section class="welcome-card">
+                <div class="welcome-card-left">
+                    <h1>
+                        Welcome Vedant
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.5">
+                            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                        </svg>
+                    </h1>
+                    <p>Ready to master your curriculum? Chat with your notes, auto-generate recall quizzes, and build exam-winning study plans.</p>
+                </div>
 
-            <div class="welcome-card">
+                <div class="hero-stats">
+                    <div class="stat-pill">
+                        <span class="stat-label">Streak</span>
+                        <span class="stat-val">🔥 5 Days</span>
+                    </div>
+                    <div class="stat-pill">
+                        <span class="stat-label">Doc Context</span>
+                        <span id="docContextStat" class="stat-val">0 Pages</span>
+                    </div>
 
-                <h1>
-                    Welcome Vedant 👋
-                </h1>
+                </div>
 
-                <p>
-                    Ready to ace your exams?
-                </p>
-
-            </div>
-
-
-
-            <!-- =========================
-                 NOTES CARD
-            ========================== -->
-
-            <div class="notes-card">
-
-                <h2>
-                    📄 Study Notes
-                </h2>
-
-                <p>
-                    Upload your study notes and let AI help you understand them.
-                </p>
-
-
-                <div class="upload-area">
-
-    <input
-        type="file"
-        id="pdfUpload"
-        accept=".pdf"
-    >
-
-    <label
-        for="pdfUpload"
-        class="upload-btn"
-    >
-        📄 Choose PDF
-    </label>
-
-    <p id="fileName">
-        No file selected
-    </p>
-
-    <div id="pdfPreview" class="pdf-preview">
-        Your extracted notes will appear here.
-    </div>
-
-    <div class="notes-actions">
-
-    <button id="summarizeBtn" class="notes-action-btn">
-        ✨ Summarize Notes
-    </button>
-
-    <button id="quizBtn" class="notes-action-btn">
-        📝 Generate Quiz
-    </button>
-
-</div>
-<!-- Study Planner -->
-<div class="planner-card">
-    <h2>📅 Study Planner</h2>
-    <p>Create a personalized study plan with AI.</p>
-
-    <div class="planner-form">
-
-        <div class="form-group">
-            <label for="subject">Subject</label>
-            <input 
-                type="text" 
-                id="subject" 
-                placeholder="e.g. Data Structures"
-            >
-        </div>
-
-        <div class="form-group">
-            <label for="examDate">Exam Date</label>
-            <input 
-                type="date" 
-                id="examDate"
-            >
-        </div>
-
-        <div class="form-group">
-            <label for="topics">Topics / Chapters</label>
-            <textarea 
-                id="topics" 
-                placeholder="e.g. Arrays, Linked Lists, Stacks, Queues, Trees"
-                rows="4"
-            ></textarea>
-        </div>
-
-        <div class="form-group">
-    <label for="priority">Priority</label>
-
-    <select id="priority">
-        <option value="balanced">Balanced</option>
-        <option value="high">High - Exam is close</option>
-        <option value="weak">Focus on Weak Topics</option>
-    </select>
-</div>
-
-        <div class="form-group">
-            <label for="studyHours">Study Hours Per Day</label>
-            <input 
-                type="number" 
-                id="studyHours" 
-                placeholder="e.g. 3"
-                min="1"
-                max="12"
-            >
-        </div>
-
-        <button id="generatePlanBtn" class="planner-btn">
-            🤖 Generate Study Plan
-        </button>
-
-    </div>
-
-    <div id="plannerResult" class="planner-result"></div>
-    <div id="progressSection" class="progress-section">
-
-    <h3>📊 Study Progress</h3>
-
-    <div id="progressContainer"></div>
-
-    <div class="overall-progress">
-        <div class="progress-header">
-            <span>Overall Progress</span>
-            <span id="progressPercentage">0%</span>
-        </div>
-
-        <div class="progress-bar">
-            <div id="overallProgressBar"></div>
-        </div>
-    </div>
-
-</div>
-</div>
-<div id="quizContainer" class="quiz-container"></div>
+                <div class="quick-chips-container">
+                    <span class="chip-label">Quick prompts:</span>
+                    <button class="quick-chip" data-prompt="Summarize key engineering formulas from my notes">📐 Formula Sheet</button>
+                    <button class="quick-chip" data-prompt="Explain Dijkstra's algorithm with time complexity">⚡ Dijkstra's Algo</button>
+                    <button class="quick-chip" data-prompt="What are the main principles of Object-Oriented Programming?">💻 OOP Principles</button>
+                    <button class="quick-chip" data-prompt="Give me 5 practice interview questions on Data Structures">🎯 5 Practice Questions</button>
+                </div>
+            </section>
 
             <!-- =========================
                  CHAT CARD
             ========================== -->
+            <section id="chatSection" class="chat-card">
 
-            <div class="chat-card">
+                <div class="chat-card-header">
+                    <div class="chat-title-group">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                        </svg>
+                        <h3>AI Study Assistant</h3>
+                        <span class="model-tag">Semantic RAG</span>
+                    </div>
 
+                    <button id="clearChat" class="clear-btn" title="Clear Conversation">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                        </svg>
+                        Clear Chat
+                    </button>
+                </div>
 
-                <button
-                    id="clearChat"
-                    class="clear-btn"
-                >
-                    🗑️ Clear Chat
-                </button>
-
-
-                <div
-                    id="messages"
-                    class="messages"
-                >
-
+                <div id="messages" class="messages">
                     <div class="message ai">
+                        <p><strong>Hi Vedant! 👋</strong> I'm your AI Study Assistant.</p>
+                        <p>You can ask me questions directly, or upload PDF lecture notes in the <strong>Study Notes</strong> tab for context-grounded citations and practice quizzes!</p>
+                    </div>
+                </div>
 
-                        Hi! 👋 Ask me anything about your studies.
+                <!-- Input Area -->
+                <div class="input-area">
+                    <div class="input-wrapper">
+                        <input
+                            type="text"
+                            id="prompt"
+                            placeholder="Ask any question about your syllabus or notes..."
+                            autocomplete="off"
+                        >
+                        <span class="shortcut-indicator">Press ↵</span>
+                    </div>
+
+                    <button id="send">
+                        <span>Send</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="22" y1="2" x2="11" y2="13"/>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                        </svg>
+                    </button>
+                </div>
+
+            </section>
+
+            <!-- =========================
+                 NOTES CARD
+            ========================== -->
+            <section id="notesSection" class="notes-card" style="display: none;">
+
+                <div class="section-header">
+                    <h2>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                        </svg>
+                        Study Notes & Document Intelligence
+                    </h2>
+                    <p>Upload lecture slides, textbooks, or notes. Our vector embeddings match questions directly to source pages.</p>
+                </div>
+
+                <div class="upload-area" id="uploadDropzone">
+                    <input type="file" id="pdfUpload" accept=".pdf">
+                    <div class="upload-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                    </div>
+                    <label for="pdfUpload" class="upload-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                        </svg>
+                        Choose PDF File
+                    </label>
+                    <p class="upload-hint">or drag and drop your document here (PDF up to 50MB)</p>
+                    <div id="fileName">No file selected</div>
+                </div>
+
+                <div class="pdf-preview-container">
+                    <div class="pdf-preview-toolbar">
+                        <span>Extracted Document Content</span>
+                        <span id="extractedStats">0 characters</span>
+                    </div>
+                    <div id="pdfPreview" class="pdf-preview">
+Your extracted notes will appear here once uploaded.
+                    </div>
+                </div>
+
+                <div class="notes-actions">
+                    <button id="summarizeBtn" class="notes-action-btn primary">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                        </svg>
+                        <span>✨ Summarize Notes</span>
+                    </button>
+                    <button id="quizBtn" class="notes-action-btn">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                            <line x1="12" y1="17" x2="12.01" y2="17"/>
+                        </svg>
+                        <span>📝 Generate Quiz</span>
+                    </button>
+                </div>
+
+            </section>
+
+            <!-- =========================
+                 QUIZ CONTAINER
+            ========================== -->
+            <section id="quizSection" class="quiz-container" style="display: none;">
+                <div class="quiz-empty-state">
+                    <div class="quiz-empty-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <path d="m9 15 2 2 4-4"/>
+                        </svg>
+                    </div>
+                    <h3>Interactive Knowledge Check</h3>
+                    <p>Test your active recall with 5 AI-generated multiple choice questions created directly from your study materials.</p>
+                    <button id="startQuizCtaBtn" class="notes-action-btn primary" style="margin: 0 auto; display: inline-flex;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                        </svg>
+                        Generate Quiz from Notes
+                    </button>
+                </div>
+            </section>
+
+            <!-- =========================
+                 STUDY PLANNER CARD
+            ========================== -->
+            <section id="plannerSection" class="planner-card" style="display: none;">
+
+                <div class="section-header">
+                    <h2>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
+                            <line x1="16" y1="2" x2="16" y2="6"/>
+                            <line x1="8" y1="2" x2="8" y2="6"/>
+                            <line x1="3" y1="10" x2="21" y2="10"/>
+                        </svg>
+                        AI Study Planner & Roadmap
+                    </h2>
+                    <p>Engineer a realistic, day-by-day revision schedule customized to your exam date and daily study availability.</p>
+                </div>
+
+                <div class="planner-layout-grid">
+
+                    <!-- Configuration Form -->
+                    <div class="planner-form-container">
+                        <div class="planner-form">
+                            <div class="form-group">
+                                <label for="subject">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/>
+                                    </svg>
+                                    Subject / Course Title
+                                </label>
+                                <input type="text" id="subject" placeholder="e.g. Data Structures & Algorithms">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="examDate">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
+                                        <line x1="16" y1="2" x2="16" y2="6"/>
+                                        <line x1="8" y1="2" x2="8" y2="6"/>
+                                        <line x1="3" y1="10" x2="21" y2="10"/>
+                                    </svg>
+                                    Exam Target Date
+                                </label>
+                                <input type="date" id="examDate">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="topics">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <line x1="8" y1="6" x2="21" y2="6"/>
+                                        <line x1="8" y1="12" x2="21" y2="12"/>
+                                        <line x1="8" y1="18" x2="21" y2="18"/>
+                                        <line x1="3" y1="6" x2="3.01" y2="6"/>
+                                        <line x1="3" y1="12" x2="3.01" y2="12"/>
+                                        <line x1="3" y1="18" x2="3.01" y2="18"/>
+                                    </svg>
+                                    Topics / Chapters (comma-separated)
+                                </label>
+                                <textarea id="topics" placeholder="e.g. Arrays, Linked Lists, Stacks, Queues, Binary Trees, Graphs, Dynamic Programming" rows="4"></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="priority">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                                    </svg>
+                                    Study Strategy / Priority
+                                </label>
+                                <select id="priority">
+                                    <option value="balanced">Balanced — Even coverage of all modules</option>
+                                    <option value="high">High Velocity — Exam is very close</option>
+                                    <option value="weak">Defensive — Deep focus on challenging topics</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="studyHours">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="12" cy="12" r="10"/>
+                                        <polyline points="12 6 12 12 16 14"/>
+                                    </svg>
+                                    Daily Study Commitment (Hours)
+                                </label>
+                                <input type="number" id="studyHours" placeholder="e.g. 3" min="1" max="12">
+                            </div>
+
+                            <button id="generatePlanBtn" class="planner-btn">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+                                </svg>
+                                Generate AI Study Plan
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Output & Roadmap Column -->
+                    <div class="planner-output-column">
+                        <div id="plannerResult" class="planner-result">
+                            <div class="planner-preview-placeholder">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
+                                    <line x1="16" y1="2" x2="16" y2="6"/>
+                                    <line x1="8" y1="2" x2="8" y2="6"/>
+                                    <line x1="3" y1="10" x2="21" y2="10"/>
+                                </svg>
+                                <h4>Your Study Plan Roadmap</h4>
+                                <p>Fill in your exam details and click Generate to produce a personalized, structured timetable.</p>
+                            </div>
+                        </div>
+
+                        <!-- Progress Section -->
+                        <div id="progressSection" class="progress-section" style="display: none;">
+                            <h3>
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="18" y1="20" x2="18" y2="10"/>
+                                    <line x1="12" y1="20" x2="12" y2="4"/>
+                                    <line x1="6" y1="20" x2="6" y2="14"/>
+                                </svg>
+                                Real-Time Topic Tracker
+                            </h3>
+
+                            <div id="progressContainer"></div>
+
+                            <div class="overall-progress">
+                                <div class="progress-header">
+                                    <span>Curriculum Completion</span>
+                                    <span id="progressPercentage">0%</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div id="overallProgressBar"></div>
+                                </div>
+                            </div>
+                        </div>
 
                     </div>
 
                 </div>
 
-
-
-                <!-- INPUT AREA -->
-
-                <div class="input-area">
-
-                    <input
-                        type="text"
-                        id="prompt"
-                        placeholder="Ask anything..."
-                    >
-
-
-                    <button id="send">
-                        Send
-                    </button>
-
-                </div>
-
-
-            </div>
-
+            </section>
 
         </main>
 
     </div>
 
-
-
     <!-- =========================
-         JAVASCRIPT LIBRARIES
+         JAVASCRIPT LIBRARIES & LOGIC
     ========================== -->
-
-    <!-- API KEY -->
     <script src="config.js"></script>
-
-
-    <!-- Markdown Parser -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-
-
-    <!-- PDF.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-
-
-    <!-- OUR JAVASCRIPT -->
     <script src="script.js"></script>
-
 
 </body>
 

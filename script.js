@@ -29,8 +29,7 @@ const pdfPreview = document.getElementById("pdfPreview");
 
 const summarizeBtn = document.getElementById("summarizeBtn");
 const quizBtn = document.getElementById("quizBtn");
-const quizContainer = document.getElementById("quizContainer");
-
+const quizContainer = document.getElementById("quizSection");
 
 // ===============================
 // PLANNER ELEMENTS
@@ -569,7 +568,62 @@ function typeMessage(element, text, onComplete = null) {
 // ===============================
 // SEND MESSAGE
 // ===============================
+async function rewriteQuestion(question) {
 
+    const history = conversation
+    .slice(-6)
+    .map(message => `${message.role}: ${message.content}`)
+    .join("\n");
+
+    const response = await fetch(
+        "https://openrouter.ai/api/v1/chat/completions",
+        {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${API_KEY}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                model: "openai/gpt-oss-20b",
+                messages: [
+                    {
+                        role: "system",
+                        content: `
+You rewrite follow-up questions into standalone questions.
+
+Use the conversation history to understand what the user is referring to.
+
+Rules:
+- If the question is already standalone, keep it unchanged.
+- If it refers to something earlier, rewrite it so it is fully understandable by itself.
+- Do not answer the question.
+- Return ONLY the rewritten question.
+                        `
+                    },
+                    {
+                        role: "user",
+                        content: `
+Conversation history:
+${history}
+
+Current question:
+${question}
+                        `
+                    }
+                ],
+                temperature: 0
+            })
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error("Failed to rewrite question");
+    }
+
+    const data = await response.json();
+
+    return data.choices[0].message.content.trim();
+}
 async function sendMessage() {
 
     const text =
@@ -641,13 +695,22 @@ async function sendMessage() {
         [...conversation];
 
 
-    // ===============================
-    // RAG PDF RETRIEVAL
-    // ===============================
-    let sourcePages = [];
-    if (pdfChunks.length > 0) {
+   // ===============================
+// RAG PDF RETRIEVAL
+// ===============================
+let sourcePages = [];
 
-        const relevantChunks = await findSemanticRelevantChunks(text, 3);
+const casualMessage =
+    /^(hi|hello|hey|thanks|thank you|thx|good job|okay|ok|great|nice|bye|goodbye)[!. ]*$/i
+        .test(text);
+
+if (pdfChunks.length > 0 && !casualMessage) {
+
+    const relevantChunks =
+        await findSemanticRelevantChunks(
+            text,
+            3
+        );
         sourcePages = [
     ...new Set(
         relevantChunks.map(chunk => chunk.page)
@@ -706,9 +769,9 @@ console.log("====================================");
         ) {
 
             const retrievedText =
-                relevantChunks
-                    .map(chunk => chunk.text)
-                    .join("\n\n");
+    relevantChunks
+        .map(chunk => chunk.text.slice(0, 1500))
+        .join("\n\n");
 
 
             messagesToSend.splice(
@@ -962,7 +1025,8 @@ clearChatButton.addEventListener(
 
         messages.innerHTML = `
             <div class="message ai">
-                Hi! 👋 Ask me anything about your studies.
+                <p><strong>Hi Vedant! 👋</strong> Conversation cleared.</p>
+                <p>Ask me anything about your studies or upload notes in Study Notes for grounded citations!</p>
             </div>
         `;
 
@@ -1171,6 +1235,11 @@ pdfChunks =
                 "========== END PDF TEXT =========="
             );
 
+            const docContextStat = document.getElementById("docContextStat");
+            const extractedStats = document.getElementById("extractedStats");
+            if (docContextStat) docContextStat.textContent = `${pdfPages.length} Pages`;
+            if (extractedStats) extractedStats.textContent = `${pdfText.length.toLocaleString()} chars (${pdfText.split(/\s+/).filter(Boolean).length} words)`;
+
         }
 
         catch (error) {
@@ -1181,15 +1250,20 @@ pdfChunks =
             );
 
             pdfText = "";
-pdfPages = [];
-pdfChunks = [];
-pdfEmbeddings = [];
+            pdfPages = [];
+            pdfChunks = [];
+            pdfEmbeddings = [];
 
             fileName.innerText =
                 "❌ Could not read this PDF.";
 
             pdfPreview.innerText =
                 "Something went wrong while reading the PDF.";
+
+            const docContextStat = document.getElementById("docContextStat");
+            const extractedStats = document.getElementById("extractedStats");
+            if (docContextStat) docContextStat.textContent = `0 Pages`;
+            if (extractedStats) extractedStats.textContent = `0 characters`;
         }
 
     }
@@ -2415,14 +2489,173 @@ function updateProgress() {
 }
 
 async function testQuestionEmbedding() {
-    const question = "What is inheritance?";
-
-    console.log("Generating question embedding...");
-
-    const embedding = await generateEmbedding(question);
-
-    console.log("Question embedding generated!");
-    console.log("Embedding length:", embedding.length);
-    console.log("First 10 values:", embedding.slice(0, 10));
+    try {
+        const question = "What is inheritance?";
+        console.log("Generating question embedding...");
+        const embedding = await generateEmbedding(question);
+        console.log("Question embedding generated! Length:", embedding.length);
+    } catch (err) {
+        console.warn("Initial embedding test skipped or failed:", err.message);
+    }
 }
 testQuestionEmbedding();
+
+// ===============================
+// MODULE NAVIGATION
+// ===============================
+
+const chatNav = document.getElementById("chatNav");
+const notesNav = document.getElementById("notesNav");
+const quizNav = document.getElementById("quizNav");
+const plannerNav = document.getElementById("plannerNav");
+
+const chatSection = document.getElementById("chatSection");
+const notesSection = document.getElementById("notesSection");
+const quizSection = document.getElementById("quizSection");
+const plannerSection = document.getElementById("plannerSection");
+const activeSectionBreadcrumb = document.getElementById("activeSectionBreadcrumb");
+
+function showSection(section, activeButton) {
+    chatSection.style.display = "none";
+    notesSection.style.display = "none";
+    quizSection.style.display = "none";
+    plannerSection.style.display = "none";
+
+    chatNav.classList.remove("active");
+    notesNav.classList.remove("active");
+    quizNav.classList.remove("active");
+    plannerNav.classList.remove("active");
+
+    if (section === chatSection) {
+        section.style.display = "flex";
+        if (activeSectionBreadcrumb) activeSectionBreadcrumb.textContent = "AI Assistant";
+    } else if (section === notesSection) {
+        section.style.display = "block";
+        if (activeSectionBreadcrumb) activeSectionBreadcrumb.textContent = "Study Notes";
+    } else if (section === quizSection) {
+        section.style.display = "block";
+        if (activeSectionBreadcrumb) activeSectionBreadcrumb.textContent = "Quiz Arena";
+    } else if (section === plannerSection) {
+        section.style.display = "block";
+        if (activeSectionBreadcrumb) activeSectionBreadcrumb.textContent = "Study Planner";
+    }
+
+    activeButton.classList.add("active");
+}
+
+// Chat
+chatNav.addEventListener("click", () => {
+    showSection(chatSection, chatNav);
+});
+
+// Notes
+notesNav.addEventListener("click", () => {
+    showSection(notesSection, notesNav);
+});
+
+// Quiz
+quizNav.addEventListener("click", () => {
+    showSection(quizSection, quizNav);
+});
+
+// Planner
+plannerNav.addEventListener("click", () => {
+    showSection(plannerSection, plannerNav);
+});
+
+// Show Chat by default
+showSection(chatSection, chatNav);
+
+// ===============================
+// THEME SWITCHER
+// ===============================
+const themeToggleBtn = document.getElementById("themeToggleBtn");
+const themeMoonIcon = document.getElementById("themeMoonIcon");
+const themeSunIcon = document.getElementById("themeSunIcon");
+
+function applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+    try {
+        localStorage.setItem("studymate_theme", theme);
+    } catch (e) {}
+
+    if (theme === "light") {
+        if (themeMoonIcon) themeMoonIcon.style.display = "none";
+        if (themeSunIcon) themeSunIcon.style.display = "block";
+    } else {
+        if (themeMoonIcon) themeMoonIcon.style.display = "block";
+        if (themeSunIcon) themeSunIcon.style.display = "none";
+    }
+}
+
+const savedTheme = localStorage.getItem("studymate_theme") || "dark";
+applyTheme(savedTheme);
+
+if (themeToggleBtn) {
+    themeToggleBtn.addEventListener("click", () => {
+        const currentTheme = document.documentElement.getAttribute("data-theme") || "dark";
+        const nextTheme = currentTheme === "dark" ? "light" : "dark";
+        applyTheme(nextTheme);
+    });
+}
+
+// ===============================
+// QUICK PROMPTS CHIPS
+// ===============================
+document.querySelectorAll(".quick-chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+        const prompt = chip.getAttribute("data-prompt");
+        if (prompt && promptInput) {
+            showSection(chatSection, chatNav);
+            promptInput.value = prompt;
+            promptInput.focus();
+        }
+    });
+});
+
+// ===============================
+// DRAG & DROP PDF UPLOAD
+// ===============================
+const uploadDropzone = document.getElementById("uploadDropzone");
+if (uploadDropzone && pdfUpload) {
+    ['dragenter', 'dragover'].forEach(eventName => {
+        uploadDropzone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadDropzone.classList.add('drag-active');
+        }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        uploadDropzone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadDropzone.classList.remove('drag-active');
+        }, false);
+    });
+
+    uploadDropzone.addEventListener('drop', (e) => {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        if (files && files.length > 0) {
+            pdfUpload.files = files;
+            const event = new Event('change', { bubbles: true });
+            pdfUpload.dispatchEvent(event);
+        }
+    });
+}
+
+// ===============================
+// START QUIZ CTA IN EMPTY STATE
+// ===============================
+const startQuizCtaBtn = document.getElementById("startQuizCtaBtn");
+if (startQuizCtaBtn && quizBtn) {
+    startQuizCtaBtn.addEventListener("click", () => {
+        if (!pdfText || pdfText.trim() === "") {
+            showSection(notesSection, notesNav);
+            alert("Please upload your PDF study notes first so AI can generate practice questions!");
+            return;
+        }
+        quizBtn.click();
+    });
+}
