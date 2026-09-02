@@ -59,30 +59,41 @@ if (progressSection) {
 let pdfText = "";
 let pdfChunks = [];
 let pdfEmbeddings = [];
+let pdfPages = [];
 
 
 // ===============================
 // PDF TEXT CHUNKING
 // ===============================
 
-function createPDFChunks(text, chunkSize = 300, overlap = 50) {
-    const words = text
-        .split(/\s+/)
-        .filter(word => word.trim() !== "");
+function createPDFChunks(pages, chunkSize = 300, overlap = 50) {
 
     const chunks = [];
-
     const step = chunkSize - overlap;
 
-    for (let i = 0; i < words.length; i += step) {
-        const chunk = words
-            .slice(i, i + chunkSize)
-            .join(" ");
+    pages.forEach((page, pageIndex) => {
 
-        if (chunk.trim() !== "") {
-            chunks.push(chunk);
+        const words = page.text
+            .split(/\s+/)
+            .filter(word => word.trim() !== "");
+
+        for (let i = 0; i < words.length; i += step) {
+
+            const chunkText = words
+                .slice(i, i + chunkSize)
+                .join(" ");
+
+            if (chunkText.trim() !== "") {
+
+                chunks.push({
+                    text: chunkText,
+                    page: page.page
+                });
+
+            }
         }
-    }
+
+    });
 
     return chunks;
 }
@@ -182,10 +193,10 @@ async function generatePDFEmbeddings() {
             `Generating embedding ${i + 1} of ${pdfChunks.length}...`
         );
 
-        const embedding =
-            await generateEmbedding(
-                pdfChunks[i]
-            );
+       const embedding =
+    await generateEmbedding(
+        pdfChunks[i].text
+    );
 
         pdfEmbeddings.push(embedding);
     }
@@ -317,10 +328,10 @@ async function findSemanticRelevantChunks(query, maxChunks = 3) {
             // 2. Keyword matching
             // -----------------------------
 
-            const chunkWords = chunk
-                .toLowerCase()
-                .split(/\W+/)
-                .filter(word => word.length > 2);
+            const chunkWords = chunk.text
+    .toLowerCase()
+    .split(/\W+/)
+    .filter(word => word.length > 2);
 
             let keywordMatches = 0;
 
@@ -346,12 +357,13 @@ async function findSemanticRelevantChunks(query, maxChunks = 3) {
                 (keywordScore * 0.2);
 
             return {
-                index: index,
-                text: chunk,
-                similarity: similarity,
-                keywordScore: keywordScore,
-                hybridScore: hybridScore
-            };
+    index: index,
+    text: chunk.text,
+    page: chunk.page,
+    similarity: similarity,
+    keywordScore: keywordScore,
+    hybridScore: hybridScore
+};
 
         }
     );
@@ -668,7 +680,7 @@ async function sendMessage() {
             chunk => {
 
                 console.log(
-    `Chunk ${chunk.index} | Similarity: ${(chunk.similarity * 100).toFixed(1)}%`
+    `Chunk ${chunk.index} | Page ${chunk.page} | Similarity: ${(chunk.similarity * 100).toFixed(1)}%`
 );
 
             }
@@ -682,8 +694,11 @@ async function sendMessage() {
         console.log("========== RETRIEVED TEXT ==========");
 
 relevantChunks.forEach((chunk, index) => {
-    console.log(`--- Retrieved Chunk ${index + 1} ---`);
-    console.log(chunk.text);
+    console.log(
+    `--- Retrieved Chunk ${index + 1} | Page ${chunk.page} ---`
+);
+
+console.log(chunk.text);
 });
 
 console.log("====================================");
@@ -991,6 +1006,7 @@ pdfUpload.addEventListener(
 
 
             let extractedText = "";
+let extractedPages = [];
 
 
             // ===============================
@@ -1019,6 +1035,10 @@ pdfUpload.addEventListener(
                             item => item.str
                         )
                         .join(" ");
+                extractedPages.push({
+    page: pageNumber,
+    text: pageText
+});
 
 
                 extractedText +=
@@ -1039,10 +1059,12 @@ pdfUpload.addEventListener(
             // CREATE PDF CHUNKS
             // ===============================
 
-            pdfChunks =
-                createPDFChunks(
-                    pdfText
-                );
+            pdfPages = extractedPages;
+
+pdfChunks =
+    createPDFChunks(
+        pdfPages
+    );
 
 
             console.log(
