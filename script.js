@@ -100,22 +100,21 @@ async function generateEmbedding(text) {
     try {
 
         const response = await fetch(
-            "https://openrouter.ai/api/v1/embeddings",
-            {
-                method: "POST",
+    "/api/embeddings",
+    {
+        method: "POST",
 
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${API_KEY}`
-                },
+        headers: {
+            "Content-Type": "application/json"
+        },
 
-                body: JSON.stringify({
-                    model: "openai/text-embedding-3-small",
-                    input: text,
-                    encoding_format: "float"
-                })
-            }
-        );
+        body: JSON.stringify({
+            model: "openai/text-embedding-3-small",
+            input: text,
+            encoding_format: "float"
+        })
+    }
+);
 
         const data = await response.json();
 
@@ -568,62 +567,6 @@ function typeMessage(element, text, onComplete = null) {
 // ===============================
 // SEND MESSAGE
 // ===============================
-async function rewriteQuestion(question) {
-
-    const history = conversation
-    .slice(-6)
-    .map(message => `${message.role}: ${message.content}`)
-    .join("\n");
-
-    const response = await fetch(
-        "https://openrouter.ai/api/v1/chat/completions",
-        {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${API_KEY}`,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                model: "openai/gpt-oss-20b",
-                messages: [
-                    {
-                        role: "system",
-                        content: `
-You rewrite follow-up questions into standalone questions.
-
-Use the conversation history to understand what the user is referring to.
-
-Rules:
-- If the question is already standalone, keep it unchanged.
-- If it refers to something earlier, rewrite it so it is fully understandable by itself.
-- Do not answer the question.
-- Return ONLY the rewritten question.
-                        `
-                    },
-                    {
-                        role: "user",
-                        content: `
-Conversation history:
-${history}
-
-Current question:
-${question}
-                        `
-                    }
-                ],
-                temperature: 0
-            })
-        }
-    );
-
-    if (!response.ok) {
-        throw new Error("Failed to rewrite question");
-    }
-
-    const data = await response.json();
-
-    return data.choices[0].message.content.trim();
-}
 async function sendMessage() {
 
     const text =
@@ -825,30 +768,26 @@ in the uploaded notes.
     try {
 
         const response =
-            await fetch(
-                "https://openrouter.ai/api/v1/chat/completions",
-                {
-                    method: "POST",
+    await fetch(
+        "/api/chat",
+        {
+            method: "POST",
 
-                    headers: {
-                        "Authorization":
-                            `Bearer ${API_KEY}`,
+            headers: {
+                "Content-Type": "application/json"
+            },
 
-                        "Content-Type":
-                            "application/json"
-                    },
+            body: JSON.stringify({
 
-                    body: JSON.stringify({
+                model:
+                    "openai/gpt-oss-20b",
 
-                        model:
-                            "openai/gpt-oss-20b",
+                messages:
+                    messagesToSend
 
-                        messages:
-                            messagesToSend
-
-                    })
-                }
-            );
+            })
+        }
+    );
 
 
         const data =
@@ -1360,30 +1299,25 @@ ${pdfText}`
 
 
             const response =
-                await fetch(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    {
-                        method: "POST",
+    await fetch(
+        "/api/chat",
+        {
+            method: "POST",
 
-                        headers: {
-                            "Authorization":
-                                `Bearer ${API_KEY}`,
+            headers: {
+                "Content-Type":
+                    "application/json"
+            },
 
-                            "Content-Type":
-                                "application/json"
-                        },
+            body: JSON.stringify({
+                model:
+                    "openai/gpt-oss-20b",
 
-                        body: JSON.stringify({
-
-                            model:
-                                "openai/gpt-oss-20b",
-
-                            messages:
-                                summaryMessages
-
-                        })
-                    }
-                );
+                messages:
+                    summaryMessages
+            })
+        }
+    );
 
 
             const data =
@@ -1553,30 +1487,25 @@ ${pdfText}`
 
 
             const response =
-                await fetch(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    {
-                        method: "POST",
+    await fetch(
+        "/api/chat",
+        {
+            method: "POST",
 
-                        headers: {
-                            "Authorization":
-                                `Bearer ${API_KEY}`,
+            headers: {
+                "Content-Type":
+                    "application/json"
+            },
 
-                            "Content-Type":
-                                "application/json"
-                        },
+            body: JSON.stringify({
+                model:
+                    "openai/gpt-oss-20b",
 
-                        body: JSON.stringify({
-
-                            model:
-                                "openai/gpt-oss-20b",
-
-                            messages:
-                                quizMessages
-
-                        })
-                    }
-                );
+                messages:
+                    quizMessages
+            })
+        }
+    );
 
 
             const data =
@@ -2120,18 +2049,15 @@ Priority rules:
     try {
 
         const response =
-            await fetch(
-                "https://openrouter.ai/api/v1/chat/completions",
-                {
-                    method: "POST",
+    await fetch(
+        "/api/chat",
+        {
+            method: "POST",
 
-                    headers: {
-                        "Authorization":
-                            `Bearer ${API_KEY}`,
-
-                        "Content-Type":
-                            "application/json"
-                    },
+            headers: {
+                "Content-Type":
+                    "application/json"
+            },
 
                     body: JSON.stringify({
 
@@ -2488,17 +2414,6 @@ function updateProgress() {
 
 }
 
-async function testQuestionEmbedding() {
-    try {
-        const question = "What is inheritance?";
-        console.log("Generating question embedding...");
-        const embedding = await generateEmbedding(question);
-        console.log("Question embedding generated! Length:", embedding.length);
-    } catch (err) {
-        console.warn("Initial embedding test skipped or failed:", err.message);
-    }
-}
-testQuestionEmbedding();
 
 // ===============================
 // MODULE NAVIGATION
