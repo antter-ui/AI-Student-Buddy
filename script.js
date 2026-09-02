@@ -58,22 +58,23 @@ if (progressSection) {
 
 let pdfText = "";
 let pdfChunks = [];
+let pdfEmbeddings = [];
 
 
 // ===============================
 // PDF TEXT CHUNKING
 // ===============================
 
-function createPDFChunks(text, chunkSize = 1000) {
-
+function createPDFChunks(text, chunkSize = 300, overlap = 50) {
     const words = text
         .split(/\s+/)
         .filter(word => word.trim() !== "");
 
     const chunks = [];
 
-    for (let i = 0; i < words.length; i += chunkSize) {
+    const step = chunkSize - overlap;
 
+    for (let i = 0; i < words.length; i += step) {
         const chunk = words
             .slice(i, i + chunkSize)
             .join(" ");
@@ -88,67 +89,431 @@ function createPDFChunks(text, chunkSize = 1000) {
 
 
 // ===============================
-// FIND RELEVANT PDF CHUNKS
+// GENERATE EMBEDDING
 // ===============================
 
-function findRelevantChunks(query, chunks, maxChunks = 2) {
+async function generateEmbedding(text) {
 
-    if (typeof query !== "string") {
-        console.error("RAG Error: query must be a string:", query);
+    try {
+
+        const response = await fetch(
+            "https://openrouter.ai/api/v1/embeddings",
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${API_KEY}`
+                },
+
+                body: JSON.stringify({
+                    model: "openai/text-embedding-3-small",
+                    input: text,
+                    encoding_format: "float"
+                })
+            }
+        );
+
+        const data = await response.json();
+
+        console.log("EMBEDDING RESPONSE:", data);
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.error?.message ||
+                "Failed to generate embedding"
+            );
+        }
+
+        if (
+            !data.data ||
+            !data.data[0] ||
+            !data.data[0].embedding
+        ) {
+
+            throw new Error(
+                "No embedding received from API"
+            );
+        }
+
+        return data.data[0].embedding;
+
+    } catch (error) {
+
+        console.error("Embedding Error:", error);
+
+        throw error;
+    }
+}
+
+
+// ===============================
+// GENERATE PDF CHUNK EMBEDDINGS
+// ===============================
+
+async function generatePDFEmbeddings() {
+
+    pdfEmbeddings = [];
+
+    if (
+        !Array.isArray(pdfChunks) ||
+        pdfChunks.length === 0
+    ) {
+
+        console.log(
+            "No PDF chunks available for embeddings."
+        );
+
+        return;
+    }
+
+    console.log(
+        "========== GENERATING PDF EMBEDDINGS =========="
+    );
+
+    for (
+        let i = 0;
+        i < pdfChunks.length;
+        i++
+    ) {
+
+        console.log(
+            `Generating embedding ${i + 1} of ${pdfChunks.length}...`
+        );
+
+        const embedding =
+            await generateEmbedding(
+                pdfChunks[i]
+            );
+
+        pdfEmbeddings.push(embedding);
+    }
+
+    console.log(
+        "PDF embeddings generated:",
+        pdfEmbeddings.length
+    );
+
+    console.log(
+        "First embedding length:",
+        pdfEmbeddings[0]?.length
+    );
+
+    console.log(
+        "==============================================="
+    );
+}
+function cosineSimilarity(vectorA, vectorB) {
+    if (!Array.isArray(vectorA) || !Array.isArray(vectorB)) {
+        throw new Error("Both inputs must be arrays.");
+    }
+
+    if (vectorA.length !== vectorB.length) {
+        throw new Error("Vectors must have the same length.");
+    }
+
+    let dotProduct = 0;
+    let magnitudeA = 0;
+    let magnitudeB = 0;
+
+    for (let i = 0; i < vectorA.length; i++) {
+        dotProduct += vectorA[i] * vectorB[i];
+        magnitudeA += vectorA[i] * vectorA[i];
+        magnitudeB += vectorB[i] * vectorB[i];
+    }
+
+    magnitudeA = Math.sqrt(magnitudeA);
+    magnitudeB = Math.sqrt(magnitudeB);
+
+    if (magnitudeA === 0 || magnitudeB === 0) {
+        return 0;
+    }
+
+    return dotProduct / (magnitudeA * magnitudeB);
+}
+async function findSemanticRelevantChunks(query, maxChunks = 3) {
+
+    if (!query || typeof query !== "string") {
         return [];
     }
 
-    if (!Array.isArray(chunks) || chunks.length === 0) {
+    if (!Array.isArray(pdfChunks) || pdfChunks.length === 0) {
+        return [];
+    }
+
+    if (!Array.isArray(pdfEmbeddings) || pdfEmbeddings.length === 0) {
+        return [];
+    }
+
+    console.log("Generating embedding for user question...");
+
+    const queryEmbedding =
+        await generateEmbedding(query);
+
+    // ===============================
+    // STOP WORDS
+    // ===============================
+
+    const stopWords = new Set([
+        "what",
+        "is",
+        "the",
+        "a",
+        "an",
+        "of",
+        "and",
+        "to",
+        "in",
+        "for",
+        "on",
+        "with",
+        "how",
+        "why",
+        "when",
+        "where",
+        "who",
+        "which",
+        "are",
+        "was",
+        "were",
+        "be",
+        "this",
+        "that"
+    ]);
+
+    // ===============================
+    // QUERY WORDS
+    // ===============================
+
+    const queryWords = query
+        .toLowerCase()
+        .split(/\W+/)
+        .filter(word =>
+            word.length > 2 &&
+            !stopWords.has(word)
+        );
+
+    console.log("QUERY WORDS:", queryWords);
+
+    // ===============================
+    // SCORE EVERY PDF CHUNK
+    // ===============================
+
+    const scoredChunks = pdfChunks.map(
+        (chunk, index) => {
+
+            // -----------------------------
+            // 1. Semantic similarity
+            // -----------------------------
+
+            const similarity =
+                cosineSimilarity(
+                    queryEmbedding,
+                    pdfEmbeddings[index]
+                );
+
+            // -----------------------------
+            // 2. Keyword matching
+            // -----------------------------
+
+            const chunkWords = chunk
+                .toLowerCase()
+                .split(/\W+/)
+                .filter(word => word.length > 2);
+
+            let keywordMatches = 0;
+
+            queryWords.forEach(word => {
+
+                if (chunkWords.includes(word)) {
+                    keywordMatches++;
+                }
+
+            });
+
+            const keywordScore =
+                queryWords.length > 0
+                    ? keywordMatches / queryWords.length
+                    : 0;
+
+            // -----------------------------
+            // 3. Hybrid score
+            // -----------------------------
+
+            const hybridScore =
+                (similarity * 0.8) +
+                (keywordScore * 0.2);
+
+            return {
+                index: index,
+                text: chunk,
+                similarity: similarity,
+                keywordScore: keywordScore,
+                hybridScore: hybridScore
+            };
+
+        }
+    );
+
+    // ===============================
+    // SORT BY HYBRID SCORE
+    // ===============================
+
+    scoredChunks.sort(
+        (a, b) =>
+            b.hybridScore - a.hybridScore
+    );
+
+    // ===============================
+    // DISPLAY RESULTS
+    // ===============================
+
+    console.log(
+        "========== HYBRID SEARCH RESULTS =========="
+    );
+
+    scoredChunks.forEach(chunk => {
+
+        console.log(
+            `Chunk ${chunk.index} | ` +
+            `Semantic: ${(chunk.similarity * 100).toFixed(1)}% | ` +
+            `Keyword: ${(chunk.keywordScore * 100).toFixed(1)}% | ` +
+            `Hybrid: ${(chunk.hybridScore * 100).toFixed(1)}%`
+        );
+
+    });
+
+    // ===============================
+    // SIMILARITY THRESHOLD
+    // ===============================
+
+    const similarityThreshold = 0.40;
+
+    const relevantChunks =
+        scoredChunks
+            .filter(
+                chunk =>
+                    chunk.similarity >=
+                    similarityThreshold
+            )
+            .slice(0, maxChunks);
+
+    console.log(
+        "Chunks passing threshold:",
+        relevantChunks
+    );
+
+    return relevantChunks;
+}
+
+// ===============================
+// FIND RELEVANT PDF CHUNKS
+// ===============================
+
+function findRelevantChunks(
+    query,
+    chunks,
+    maxChunks = 2
+) {
+
+    if (typeof query !== "string") {
+
+        console.error(
+            "RAG Error: query must be a string:",
+            query
+        );
+
+        return [];
+    }
+
+    if (
+        !Array.isArray(chunks) ||
+        chunks.length === 0
+    ) {
+
         return [];
     }
 
     // Convert question into important words
-    const queryWords = query
-        .toLowerCase()
-        .split(/\W+/)
-        .filter(word => word.length > 2);
+    const stopWords = new Set([
+    "what",
+    "is",
+    "the",
+    "a",
+    "an",
+    "of",
+    "and",
+    "to",
+    "in",
+    "for",
+    "on",
+    "with",
+    "how",
+    "why",
+    "when",
+    "where",
+    "who",
+    "which",
+    "are",
+    "was",
+    "were",
+    "be",
+    "this",
+    "that"
+]);
+
+const queryWords = query
+    .toLowerCase()
+    .split(/\W+/)
+    .filter(word =>
+        word.length > 2 &&
+        !stopWords.has(word)
+    );
+    console.log("QUERY WORDS:", queryWords);
 
     if (queryWords.length === 0) {
         return [];
     }
 
-    const scoredChunks = chunks.map((chunk, index) => {
+    const scoredChunks = chunks.map(
+        (chunk, index) => {
 
-        const chunkWords = chunk
-            .toLowerCase()
-            .split(/\W+/)
-            .filter(word => word.length > 2);
+            const chunkWords = chunk
+                .toLowerCase()
+                .split(/\W+/)
+                .filter(word => word.length > 2);
 
-        let score = 0;
+            let score = 0;
 
-        queryWords.forEach(word => {
+            queryWords.forEach(word => {
 
-            if (chunkWords.includes(word)) {
-                score++;
-            }
+                if (chunkWords.includes(word)) {
+                    score++;
+                }
 
-        });
+            });
 
-        // Calculate percentage similarity
-        const similarity =
-            score / queryWords.length;
+            // Calculate similarity
+            const similarity =
+                score / queryWords.length;
 
-        return {
-            index: index,
-            text: chunk,
-            score: score,
-            similarity: similarity
-        };
-    });
-
+            return {
+                index: index,
+                text: chunk,
+                score: score,
+                similarity: similarity
+            };
+        }
+    );
 
     // Highest similarity first
     scoredChunks.sort(
-        (a, b) => b.similarity - a.similarity
+        (a, b) =>
+            b.similarity - a.similarity
     );
 
-
-    // Return only useful chunks
+    // Return useful chunks
     return scoredChunks
         .filter(chunk => chunk.score > 0)
         .slice(0, maxChunks);
@@ -163,26 +528,36 @@ function typeMessage(element, text) {
 
     let index = 0;
 
-    const speed = text.length > 1000 ? 1 : 5;
+    const speed =
+        text.length > 1000 ? 1 : 5;
 
     element.textContent = "";
 
     const interval = setInterval(() => {
 
-        element.textContent = text.slice(0, index + 1);
+        element.textContent =
+            text.slice(0, index + 1);
 
         index++;
 
-        messages.scrollTop = messages.scrollHeight;
+        messages.scrollTop =
+            messages.scrollHeight;
 
         if (index >= text.length) {
 
             clearInterval(interval);
 
-            if (typeof marked !== "undefined") {
-                element.innerHTML = marked.parse(text);
+            if (
+                typeof marked !== "undefined"
+            ) {
+
+                element.innerHTML =
+                    marked.parse(text);
+
             } else {
-                element.textContent = text;
+
+                element.textContent =
+                    text;
             }
         }
 
@@ -196,8 +571,8 @@ function typeMessage(element, text) {
 
 async function sendMessage() {
 
-    // Get the actual text from the input
-    const text = promptInput.value.trim();
+    const text =
+        promptInput.value.trim();
 
     if (text === "") {
         return;
@@ -208,13 +583,18 @@ async function sendMessage() {
     // SHOW USER MESSAGE
     // ===============================
 
-    const userMessage = document.createElement("div");
+    const userMessage =
+        document.createElement("div");
 
-    userMessage.className = "message user";
+    userMessage.className =
+        "message user";
 
-    userMessage.innerText = text;
+    userMessage.innerText =
+        text;
 
-    messages.appendChild(userMessage);
+    messages.appendChild(
+        userMessage
+    );
 
 
     // Clear input
@@ -235,22 +615,29 @@ async function sendMessage() {
     // SHOW THINKING MESSAGE
     // ===============================
 
-    const aiMessage = document.createElement("div");
+    const aiMessage =
+        document.createElement("div");
 
-    aiMessage.className = "message ai";
+    aiMessage.className =
+        "message ai";
 
-    aiMessage.innerText = "Thinking...";
+    aiMessage.innerText =
+        "Thinking...";
 
-    messages.appendChild(aiMessage);
+    messages.appendChild(
+        aiMessage
+    );
 
-    messages.scrollTop = messages.scrollHeight;
+    messages.scrollTop =
+        messages.scrollHeight;
 
 
     // ===============================
     // PREPARE MESSAGES FOR AI
     // ===============================
 
-    let messagesToSend = [...conversation];
+    let messagesToSend =
+        [...conversation];
 
 
     // ===============================
@@ -259,44 +646,70 @@ async function sendMessage() {
 
     if (pdfChunks.length > 0) {
 
-        // IMPORTANT:
-        // Use "text", not the DOM element "userMessage"
-        const relevantChunks = findRelevantChunks(
-            text,
-            pdfChunks,
-            2
+        const relevantChunks = await findSemanticRelevantChunks(text, 3);
+
+
+        console.log(
+            "========== RAG =========="
         );
 
-       console.log("========== RAG ==========");
-console.log("User question:", text);
-console.log("Total PDF chunks:", pdfChunks.length);
+        console.log(
+            "User question:",
+            text
+        );
 
-relevantChunks.forEach(chunk => {
+        console.log(
+            "Total PDF chunks:",
+            pdfChunks.length
+        );
 
-    console.log(
-        `Chunk ${chunk.index + 1} | ` +
-        `Score: ${chunk.score} | ` +
-        `Similarity: ${(chunk.similarity * 100).toFixed(1)}%`
-    );
 
+        relevantChunks.forEach(
+            chunk => {
+
+                console.log(
+    `Chunk ${chunk.index} | Similarity: ${(chunk.similarity * 100).toFixed(1)}%`
+);
+
+            }
+        );
+
+
+        console.log(
+            "Retrieved chunks:",
+            relevantChunks
+        );
+        console.log("========== RETRIEVED TEXT ==========");
+
+relevantChunks.forEach((chunk, index) => {
+    console.log(`--- Retrieved Chunk ${index + 1} ---`);
+    console.log(chunk.text);
 });
 
-console.log("Retrieved chunks:", relevantChunks);
-console.log("=========================");
+console.log("====================================");
+
+        console.log(
+            "========================="
+        );
 
 
-        if (relevantChunks.length > 0) {
+        if (
+            relevantChunks.length > 0
+        ) {
 
-            const retrievedText = relevantChunks
-                .map(chunk => chunk.text)
-                .join("\n\n");
+            const retrievedText =
+                relevantChunks
+                    .map(chunk => chunk.text)
+                    .join("\n\n");
 
 
-            messagesToSend.splice(1, 0, {
+            messagesToSend.splice(
+                1,
+                0,
+                {
+                    role: "system",
 
-                role: "system",
-
-                content: `
+                    content: `
 Use the following relevant sections from the uploaded study notes
 to answer the student's question.
 
@@ -310,22 +723,26 @@ Retrieved study notes:
 
 ${retrievedText}
 `
-            });
+                }
+            );
 
         } else {
 
-            messagesToSend.splice(1, 0, {
+            messagesToSend.splice(
+                1,
+                0,
+                {
+                    role: "system",
 
-                role: "system",
-
-                content: `
+                    content: `
 The uploaded study notes do not contain information relevant
 to the student's question.
 
 Clearly tell the student that the answer is not available
 in the uploaded notes.
 `
-            });
+                }
+            );
         }
     }
 
@@ -336,30 +753,40 @@ in the uploaded notes.
 
     try {
 
-        const response = await fetch(
-            "https://openrouter.ai/api/v1/chat/completions",
-            {
-                method: "POST",
+        const response =
+            await fetch(
+                "https://openrouter.ai/api/v1/chat/completions",
+                {
+                    method: "POST",
 
-                headers: {
-                    "Authorization": `Bearer ${API_KEY}`,
-                    "Content-Type": "application/json"
-                },
+                    headers: {
+                        "Authorization":
+                            `Bearer ${API_KEY}`,
 
-                body: JSON.stringify({
+                        "Content-Type":
+                            "application/json"
+                    },
 
-                    model: "openai/gpt-oss-20b",
+                    body: JSON.stringify({
 
-                    messages: messagesToSend
+                        model:
+                            "openai/gpt-oss-20b",
 
-                })
-            }
+                        messages:
+                            messagesToSend
+
+                    })
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+        console.log(
+            "API RESPONSE:",
+            data
         );
-
-
-        const data = await response.json();
-
-        console.log("API RESPONSE:", data);
 
 
         // Check API error
@@ -389,7 +816,9 @@ in the uploaded notes.
         // ===============================
 
         const aiResponse =
-            data.choices[0].message.content;
+            data.choices[0]
+                .message
+                .content;
 
 
         // ===============================
@@ -404,15 +833,11 @@ in the uploaded notes.
 
         // Save AI response
         conversation.push({
-
             role: "assistant",
-
             content: aiResponse
-
         });
 
     }
-
 
     catch (error) {
 
@@ -423,9 +848,7 @@ in the uploaded notes.
 
         aiMessage.innerText =
             "Error: " + error.message;
-
     }
-
 }
 
 
@@ -450,7 +873,6 @@ promptInput.addEventListener(
         if (event.key === "Enter") {
 
             sendMessage();
-
         }
 
     }
@@ -471,7 +893,6 @@ clearChatButton.addEventListener(
             </div>
         `;
 
-
         conversation = [
 
             {
@@ -485,7 +906,6 @@ If the answer cannot be found in the provided notes, clearly say that the inform
             }
 
         ];
-
     }
 );
 
@@ -498,7 +918,8 @@ pdfUpload.addEventListener(
     "change",
     async function () {
 
-        const file = pdfUpload.files[0];
+        const file =
+            pdfUpload.files[0];
 
 
         // No file selected
@@ -512,23 +933,25 @@ pdfUpload.addEventListener(
 
             pdfText = "";
             pdfChunks = [];
+            pdfEmbeddings = [];
 
             return;
-
         }
 
 
         // Check file type
-        if (file.type !== "application/pdf") {
+        if (
+            file.type !== "application/pdf"
+        ) {
 
             fileName.innerText =
                 "❌ Please select a PDF file.";
 
             pdfText = "";
             pdfChunks = [];
+            pdfEmbeddings = [];
 
             return;
-
         }
 
 
@@ -537,7 +960,9 @@ pdfUpload.addEventListener(
         // ===============================
 
         fileName.innerText =
-            "📖 Reading " + file.name + "...";
+            "📖 Reading " +
+            file.name +
+            "...";
 
         pdfPreview.innerText =
             "Extracting text from your PDF...";
@@ -558,9 +983,11 @@ pdfUpload.addEventListener(
             // ===============================
 
             const pdf =
-                await pdfjsLib.getDocument({
-                    data: arrayBuffer
-                }).promise;
+                await pdfjsLib
+                    .getDocument({
+                        data: arrayBuffer
+                    })
+                    .promise;
 
 
             let extractedText = "";
@@ -588,13 +1015,15 @@ pdfUpload.addEventListener(
 
                 const pageText =
                     textContent.items
-                        .map(item => item.str)
+                        .map(
+                            item => item.str
+                        )
                         .join(" ");
 
 
                 extractedText +=
-                    pageText + "\n\n";
-
+                    pageText +
+                    "\n\n";
             }
 
 
@@ -602,7 +1031,8 @@ pdfUpload.addEventListener(
             // STORE PDF TEXT
             // ===============================
 
-            pdfText = extractedText;
+            pdfText =
+                extractedText;
 
 
             // ===============================
@@ -610,13 +1040,22 @@ pdfUpload.addEventListener(
             // ===============================
 
             pdfChunks =
-                createPDFChunks(pdfText);
+                createPDFChunks(
+                    pdfText
+                );
 
 
             console.log(
                 "PDF chunks created:",
                 pdfChunks.length
             );
+
+
+            // ===============================
+            // GENERATE EMBEDDINGS
+            // ===============================
+
+            await generatePDFEmbeddings();
 
 
             // ===============================
@@ -631,7 +1070,9 @@ pdfUpload.addEventListener(
             // SHOW PDF PREVIEW
             // ===============================
 
-            if (pdfText.trim() === "") {
+            if (
+                pdfText.trim() === ""
+            ) {
 
                 pdfPreview.innerText =
                     "⚠️ No selectable text was found in this PDF. It may be a scanned/image-based PDF.";
@@ -640,7 +1081,6 @@ pdfUpload.addEventListener(
 
                 pdfPreview.innerText =
                     pdfText;
-
             }
 
 
@@ -660,7 +1100,6 @@ pdfUpload.addEventListener(
 
         }
 
-
         catch (error) {
 
             console.error(
@@ -670,13 +1109,13 @@ pdfUpload.addEventListener(
 
             pdfText = "";
             pdfChunks = [];
+            pdfEmbeddings = [];
 
             fileName.innerText =
                 "❌ Could not read this PDF.";
 
             pdfPreview.innerText =
                 "Something went wrong while reading the PDF.";
-
         }
 
     }
@@ -691,28 +1130,24 @@ summarizeBtn.addEventListener(
     "click",
     async function () {
 
-        // Check PDF
-        if (pdfText.trim() === "") {
+        if (
+            pdfText.trim() === ""
+        ) {
 
             alert(
                 "Please upload a PDF first."
             );
 
             return;
-
         }
 
 
-        // Disable button
-        summarizeBtn.disabled = true;
+        summarizeBtn.disabled =
+            true;
 
         summarizeBtn.innerText =
             "⏳ Summarizing...";
 
-
-        // ===============================
-        // SHOW USER REQUEST
-        // ===============================
 
         const userMessage =
             document.createElement("div");
@@ -727,10 +1162,6 @@ summarizeBtn.addEventListener(
             userMessage
         );
 
-
-        // ===============================
-        // SHOW AI LOADING
-        // ===============================
 
         const aiMessage =
             document.createElement("div");
@@ -751,10 +1182,6 @@ summarizeBtn.addEventListener(
 
 
         try {
-
-            // ===============================
-            // SUMMARY PROMPT
-            // ===============================
 
             const summaryMessages = [
 
@@ -784,10 +1211,6 @@ ${pdfText}`
             ];
 
 
-            // ===============================
-            // CALL AI
-            // ===============================
-
             const response =
                 await fetch(
                     "https://openrouter.ai/api/v1/chat/completions",
@@ -811,12 +1234,10 @@ ${pdfText}`
                                 summaryMessages
 
                         })
-
                     }
                 );
 
 
-            // Get response
             const data =
                 await response.json();
 
@@ -827,18 +1248,15 @@ ${pdfText}`
             );
 
 
-            // Check API error
             if (!response.ok) {
 
                 throw new Error(
                     data.error?.message ||
                     "Summary request failed"
                 );
-
             }
 
 
-            // Check response
             if (
                 !data.choices ||
                 data.choices.length === 0
@@ -847,23 +1265,21 @@ ${pdfText}`
                 throw new Error(
                     "No summary received"
                 );
-
             }
 
 
-            // Get summary
             const summary =
-                data.choices[0].message.content;
+                data.choices[0]
+                    .message
+                    .content;
 
 
-            // Display summary
             typeMessage(
                 aiMessage,
                 summary
             );
 
         }
-
 
         catch (error) {
 
@@ -874,7 +1290,6 @@ ${pdfText}`
 
             aiMessage.innerText =
                 "Error: " + error.message;
-
         }
 
 
@@ -885,7 +1300,6 @@ ${pdfText}`
 
             summarizeBtn.innerText =
                 "✨ Summarize Notes";
-
         }
 
     }
@@ -911,26 +1325,25 @@ quizBtn.addEventListener(
     "click",
     async function () {
 
-        // Check PDF
-        if (pdfText.trim() === "") {
+        if (
+            pdfText.trim() === ""
+        ) {
 
             alert(
                 "Please upload a PDF first."
             );
 
             return;
-
         }
 
 
-        // Disable button
-        quizBtn.disabled = true;
+        quizBtn.disabled =
+            true;
 
         quizBtn.innerText =
             "⏳ Generating...";
 
 
-        // Show loading
         quizContainer.innerHTML = `
             <div class="loading">
                 🧠 Creating your quiz...
@@ -939,10 +1352,6 @@ quizBtn.addEventListener(
 
 
         try {
-
-            // ===============================
-            // QUIZ PROMPT
-            // ===============================
 
             const quizMessages = [
 
@@ -995,10 +1404,6 @@ ${pdfText}`
             ];
 
 
-            // ===============================
-            // CALL AI
-            // ===============================
-
             const response =
                 await fetch(
                     "https://openrouter.ai/api/v1/chat/completions",
@@ -1022,14 +1427,9 @@ ${pdfText}`
                                 quizMessages
 
                         })
-
                     }
                 );
 
-
-            // ===============================
-            // GET RESPONSE
-            // ===============================
 
             const data =
                 await response.json();
@@ -1041,18 +1441,15 @@ ${pdfText}`
             );
 
 
-            // Check API error
             if (!response.ok) {
 
                 throw new Error(
                     data.error?.message ||
                     "Quiz generation failed"
                 );
-
             }
 
 
-            // Check response
             if (
                 !data.choices ||
                 data.choices.length === 0
@@ -1061,19 +1458,15 @@ ${pdfText}`
                 throw new Error(
                     "No quiz received"
                 );
-
             }
 
 
-            // ===============================
-            // GET AI TEXT
-            // ===============================
-
             let quizText =
-                data.choices[0].message.content;
+                data.choices[0]
+                    .message
+                    .content;
 
 
-            // Remove Markdown code fences
             quizText =
                 quizText
                     .replace(
@@ -1087,9 +1480,10 @@ ${pdfText}`
                     .trim();
 
 
-            // Convert JSON text
             const quiz =
-                JSON.parse(quizText);
+                JSON.parse(
+                    quizText
+                );
 
 
             console.log(
@@ -1098,14 +1492,11 @@ ${pdfText}`
             );
 
 
-            // ===============================
-            // SAVE QUIZ
-            // ===============================
-
             currentQuiz =
                 quiz;
 
-            currentQuestion = 0;
+            currentQuestion =
+                0;
 
             userAnswers =
                 new Array(
@@ -1113,11 +1504,9 @@ ${pdfText}`
                 ).fill(null);
 
 
-            // Show first question
             showQuestion();
 
         }
-
 
         catch (error) {
 
@@ -1131,7 +1520,6 @@ ${pdfText}`
                     ❌ ${error.message}
                 </div>
             `;
-
         }
 
 
@@ -1142,7 +1530,6 @@ ${pdfText}`
 
             quizBtn.innerText =
                 "📝 Generate Quiz";
-
         }
 
     }
@@ -1155,7 +1542,10 @@ ${pdfText}`
 
 function showQuestion() {
 
-    if (currentQuiz.length === 0) {
+    if (
+        currentQuiz.length === 0
+    ) {
+
         return;
     }
 
@@ -1212,17 +1602,17 @@ function showQuestion() {
                     currentQuestion > 0
 
                         ? `
-                        <button
-                            type="button"
-                            id="previousBtn"
-                            class="quiz-control-btn"
-                        >
-                            ← Previous
-                        </button>
+                            <button
+                                type="button"
+                                id="previousBtn"
+                                class="quiz-control-btn"
+                            >
+                                ← Previous
+                            </button>
                         `
 
                         : `
-                        <span></span>
+                            <span></span>
                         `
                 }
 
@@ -1232,23 +1622,23 @@ function showQuestion() {
                     currentQuiz.length - 1
 
                         ? `
-                        <button
-                            type="button"
-                            id="nextBtn"
-                            class="quiz-control-btn"
-                        >
-                            Next →
-                        </button>
+                            <button
+                                type="button"
+                                id="nextBtn"
+                                class="quiz-control-btn"
+                            >
+                                Next →
+                            </button>
                         `
 
                         : `
-                        <button
-                            type="button"
-                            id="submitQuizBtn"
-                            class="quiz-control-btn"
-                        >
-                            Submit Quiz
-                        </button>
+                            <button
+                                type="button"
+                                id="submitQuizBtn"
+                                class="quiz-control-btn"
+                            >
+                                Submit Quiz
+                            </button>
                         `
                 }
 
@@ -1282,11 +1672,12 @@ function showQuestion() {
                         );
 
 
-                    userAnswers[currentQuestion] =
+                    userAnswers[
+                        currentQuestion
+                    ] =
                         selectedOption;
 
 
-                    // Remove previous selection
                     options.forEach(
                         function (button) {
 
@@ -1298,7 +1689,6 @@ function showQuestion() {
                     );
 
 
-                    // Highlight selected answer
                     this.classList.add(
                         "selected"
                     );
@@ -1327,8 +1717,9 @@ function showQuestion() {
             function () {
 
                 if (
-                    userAnswers[currentQuestion] ===
-                    null
+                    userAnswers[
+                        currentQuestion
+                    ] === null
                 ) {
 
                     alert(
@@ -1336,7 +1727,6 @@ function showQuestion() {
                     );
 
                     return;
-
                 }
 
 
@@ -1346,7 +1736,6 @@ function showQuestion() {
 
             }
         );
-
     }
 
 
@@ -1372,7 +1761,6 @@ function showQuestion() {
 
             }
         );
-
     }
 
 
@@ -1393,8 +1781,9 @@ function showQuestion() {
             function () {
 
                 if (
-                    userAnswers[currentQuestion] ===
-                    null
+                    userAnswers[
+                        currentQuestion
+                    ] === null
                 ) {
 
                     alert(
@@ -1402,7 +1791,6 @@ function showQuestion() {
                     );
 
                     return;
-
                 }
 
 
@@ -1410,7 +1798,6 @@ function showQuestion() {
 
             }
         );
-
     }
 
 }
@@ -1434,7 +1821,6 @@ function calculateQuizScore() {
             ) {
 
                 score++;
-
             }
 
         }
@@ -1446,10 +1832,6 @@ function calculateQuizScore() {
             (score / currentQuiz.length) * 100
         );
 
-
-    // ===============================
-    // SHOW RESULT
-    // ===============================
 
     quizContainer.innerHTML = `
 
@@ -1509,9 +1891,9 @@ function calculateQuizScore() {
 }
 
 
-// =========================
+// ===============================
 // STUDY PLANNER
-// =========================
+// ===============================
 
 async function generateStudyPlan() {
 
@@ -1531,7 +1913,6 @@ async function generateStudyPlan() {
         priorityInput.value;
 
 
-    // Validate input
     if (
         !subject ||
         !examDate ||
@@ -1628,7 +2009,6 @@ Priority rules:
                         ]
 
                     })
-
                 }
             );
 
@@ -1643,7 +2023,6 @@ Priority rules:
                 data.error?.message ||
                 "Failed to generate study plan."
             );
-
         }
 
 
@@ -1655,12 +2034,13 @@ Priority rules:
             throw new Error(
                 "No response received from AI."
             );
-
         }
 
 
         const plan =
-            data.choices[0].message.content;
+            data.choices[0]
+                .message
+                .content;
 
 
         plannerResult.innerHTML = `
@@ -1673,7 +2053,6 @@ Priority rules:
         createProgressTracker();
 
     }
-
 
     catch (error) {
 
@@ -1689,7 +2068,6 @@ Priority rules:
                 ${error.message}
             </div>
         `;
-
     }
 
 
@@ -1700,7 +2078,6 @@ Priority rules:
 
         generatePlanBtn.textContent =
             "🤖 Generate Study Plan";
-
     }
 
 }
@@ -1712,9 +2089,9 @@ generatePlanBtn.addEventListener(
 );
 
 
-// =========================
+// ===============================
 // STUDY PROGRESS TRACKING
-// =========================
+// ===============================
 
 let topicProgress =
     JSON.parse(
@@ -1723,6 +2100,10 @@ let topicProgress =
         )
     ) || {};
 
+
+// ===============================
+// CREATE PROGRESS TRACKER
+// ===============================
 
 function createProgressTracker() {
 
@@ -1767,8 +2148,8 @@ function createProgressTracker() {
                 undefined
             ) {
 
-                topicProgress[topic] = 0;
-
+                topicProgress[topic] =
+                    0;
             }
 
 
@@ -1844,10 +2225,11 @@ function createProgressTracker() {
                 function () {
 
                     topicProgress[topic] =
-                        Number(this.value);
+                        Number(
+                            this.value
+                        );
 
 
-                    // Save progress
                     localStorage.setItem(
                         "studyProgress",
                         JSON.stringify(
@@ -1876,9 +2258,9 @@ function createProgressTracker() {
 }
 
 
-// =========================
+// ===============================
 // UPDATE TOPIC PROGRESS
-// =========================
+// ===============================
 
 function updateTopicProgress(
     index,
@@ -1895,15 +2277,14 @@ function updateTopicProgress(
 
         progressBar.style.width =
             `${value}%`;
-
     }
 
 }
 
 
-// =========================
+// ===============================
 // UPDATE OVERALL PROGRESS
-// =========================
+// ===============================
 
 function updateProgress() {
 
@@ -1948,7 +2329,6 @@ function updateProgress() {
 
         progressPercentage.textContent =
             `${average}%`;
-
     }
 
 
@@ -1956,7 +2336,19 @@ function updateProgress() {
 
         overallProgressBar.style.width =
             `${average}%`;
-
     }
 
 }
+
+async function testQuestionEmbedding() {
+    const question = "What is inheritance?";
+
+    console.log("Generating question embedding...");
+
+    const embedding = await generateEmbedding(question);
+
+    console.log("Question embedding generated!");
+    console.log("Embedding length:", embedding.length);
+    console.log("First 10 values:", embedding.slice(0, 10));
+}
+testQuestionEmbedding();
