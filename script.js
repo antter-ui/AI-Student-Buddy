@@ -57,42 +57,35 @@ if (progressSection) {
 // ===============================
 
 let pdfText = "";
+let pdfPages = [];
 let pdfChunks = [];
 let pdfEmbeddings = [];
-let pdfPages = [];
-
 
 // ===============================
 // PDF TEXT CHUNKING
 // ===============================
 
 function createPDFChunks(pages, chunkSize = 300, overlap = 50) {
-
     const chunks = [];
     const step = chunkSize - overlap;
 
-    pages.forEach((page, pageIndex) => {
-
-        const words = page.text
+    pages.forEach((pageData) => {
+        const words = pageData.text
             .split(/\s+/)
             .filter(word => word.trim() !== "");
 
         for (let i = 0; i < words.length; i += step) {
-
             const chunkText = words
                 .slice(i, i + chunkSize)
                 .join(" ");
 
             if (chunkText.trim() !== "") {
-
                 chunks.push({
                     text: chunkText,
-                    page: page.page
+                    page: pageData.page
                 });
-
             }
         }
-
     });
 
     return chunks;
@@ -536,12 +529,11 @@ const queryWords = query
 // TYPING EFFECT
 // ===============================
 
-function typeMessage(element, text) {
+function typeMessage(element, text, onComplete = null) {
 
     let index = 0;
 
-    const speed =
-        text.length > 1000 ? 1 : 5;
+    const speed = text.length > 1000 ? 1 : 5;
 
     element.textContent = "";
 
@@ -559,17 +551,14 @@ function typeMessage(element, text) {
 
             clearInterval(interval);
 
-            if (
-                typeof marked !== "undefined"
-            ) {
-
-                element.innerHTML =
-                    marked.parse(text);
-
+            if (typeof marked !== "undefined") {
+                element.innerHTML = marked.parse(text);
             } else {
+                element.textContent = text;
+            }
 
-                element.textContent =
-                    text;
+            if (typeof onComplete === "function") {
+                onComplete();
             }
         }
 
@@ -655,11 +644,15 @@ async function sendMessage() {
     // ===============================
     // RAG PDF RETRIEVAL
     // ===============================
-
+    let sourcePages = [];
     if (pdfChunks.length > 0) {
 
         const relevantChunks = await findSemanticRelevantChunks(text, 3);
-
+        sourcePages = [
+    ...new Set(
+        relevantChunks.map(chunk => chunk.page)
+    )
+].sort((a, b) => a - b);
 
         console.log(
             "========== RAG =========="
@@ -840,10 +833,75 @@ in the uploaded notes.
         // DISPLAY AI RESPONSE
         // ===============================
 
-        typeMessage(
-            aiMessage,
-            aiResponse
-        );
+        typeMessage(aiMessage, aiResponse, () => {
+
+    // ===============================
+    // SHOW PDF SOURCES
+    // ===============================
+
+    if (
+        pdfChunks.length > 0 &&
+        sourcePages.length > 0
+    ) {
+
+        const sourceContainer =
+            document.createElement("div");
+
+        sourceContainer.className =
+            "pdf-sources";
+
+        sourceContainer.innerHTML = `
+            <div class="sources-title">
+                📄 Sources
+            </div>
+
+            <div class="source-pages">
+                ${sourcePages.map(page => `
+                    <button
+                        type="button"
+                        class="source-page-btn"
+                        data-page="${page}"
+                    >
+                        Page ${page}
+                    </button>
+                `).join("")}
+            </div>
+        `;
+
+        aiMessage.appendChild(sourceContainer);
+
+        sourceContainer
+            .querySelectorAll(".source-page-btn")
+            .forEach(button => {
+
+                button.addEventListener(
+                    "click",
+                    function () {
+
+                        const pageNumber =
+                            Number(this.dataset.page);
+
+                        const pageData =
+                            pdfPages.find(
+                                page =>
+                                    page.page === pageNumber
+                            );
+
+                        if (pageData) {
+
+                            pdfPreview.innerText =
+                                `📄 Page ${pageNumber}\n\n${pageData.text}`;
+
+                            pdfPreview.scrollIntoView({
+                                behavior: "smooth",
+                                block: "start"
+                            });
+                        }
+                    }
+                );
+            });
+    }
+});
 
 
         // Save AI response
@@ -1005,7 +1063,7 @@ pdfUpload.addEventListener(
                     .promise;
 
 
-            let extractedText = "";
+           let extractedText = "";
 let extractedPages = [];
 
 
@@ -1014,37 +1072,30 @@ let extractedPages = [];
             // ===============================
 
             for (
-                let pageNumber = 1;
-                pageNumber <= pdf.numPages;
-                pageNumber++
-            ) {
+    let pageNumber = 1;
+    pageNumber <= pdf.numPages;
+    pageNumber++
+) {
 
-                const page =
-                    await pdf.getPage(
-                        pageNumber
-                    );
+    const page =
+        await pdf.getPage(pageNumber);
 
+    const textContent =
+        await page.getTextContent();
 
-                const textContent =
-                    await page.getTextContent();
+    const pageText =
+        textContent.items
+            .map(item => item.str)
+            .join(" ");
 
+    extractedPages.push({
+        page: pageNumber,
+        text: pageText
+    });
 
-                const pageText =
-                    textContent.items
-                        .map(
-                            item => item.str
-                        )
-                        .join(" ");
-                extractedPages.push({
-    page: pageNumber,
-    text: pageText
-});
-
-
-                extractedText +=
-                    pageText +
-                    "\n\n";
-            }
+    extractedText +=
+        pageText + "\n\n";
+}
 
 
             // ===============================
@@ -1130,8 +1181,9 @@ pdfChunks =
             );
 
             pdfText = "";
-            pdfChunks = [];
-            pdfEmbeddings = [];
+pdfPages = [];
+pdfChunks = [];
+pdfEmbeddings = [];
 
             fileName.innerText =
                 "❌ Could not read this PDF.";
