@@ -7,9 +7,12 @@ module.exports = async function handler(req, res) {
 
     const apiKey = process.env.OPENROUTER_API_KEY;
 
+    console.log("API KEY EXISTS:", !!apiKey);
+    console.log("API KEY LENGTH:", apiKey ? apiKey.length : 0);
+
     if (!apiKey) {
         return res.status(500).json({
-            error: "OPENROUTER_API_KEY is not configured on Vercel"
+            error: "OPENROUTER_API_KEY is missing from Vercel"
         });
     }
 
@@ -20,15 +23,15 @@ module.exports = async function handler(req, res) {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${apiKey}`,
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "https://ai-student-buddy.vercel.app/",
-                    "X-Title": "StudyMate AI"
+                    "Content-Type": "application/json"
                 },
                 body: JSON.stringify(req.body)
             }
         );
 
         const data = await response.json();
+
+        console.log("OpenRouter status:", response.status);
 
         return res.status(response.status).json(data);
 
@@ -37,7 +40,7 @@ module.exports = async function handler(req, res) {
 
         return res.status(500).json({
             error: {
-                message: error.message || "Internal server error"
+                message: error.message
             }
         });
     }
