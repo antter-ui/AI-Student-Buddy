@@ -2488,29 +2488,56 @@ const themeToggleBtn = document.getElementById("themeToggleBtn");
 const themeMoonIcon = document.getElementById("themeMoonIcon");
 const themeSunIcon = document.getElementById("themeSunIcon");
 
+const landingThemeToggle = document.getElementById("landingThemeToggle");
+const openLandingBtn = document.getElementById("openLandingBtn");
+
 function applyTheme(theme) {
     document.documentElement.setAttribute("data-theme", theme);
     try {
         localStorage.setItem("studymate_theme", theme);
     } catch (e) {}
 
-    if (theme === "light") {
-        if (themeMoonIcon) themeMoonIcon.style.display = "none";
-        if (themeSunIcon) themeSunIcon.style.display = "block";
-    } else {
-        if (themeMoonIcon) themeMoonIcon.style.display = "block";
-        if (themeSunIcon) themeSunIcon.style.display = "none";
+    const isLight = theme === "light";
+    if (themeMoonIcon) themeMoonIcon.style.display = isLight ? "none" : "block";
+    if (themeSunIcon) themeSunIcon.style.display = isLight ? "block" : "none";
+
+    if (landingThemeToggle) {
+        const landingMoon = landingThemeToggle.querySelector(".theme-moon");
+        const landingSun = landingThemeToggle.querySelector(".theme-sun");
+        if (landingMoon) landingMoon.style.display = isLight ? "none" : "block";
+        if (landingSun) landingSun.style.display = isLight ? "block" : "none";
+    }
+
+    if (window.StudyMate3D && typeof window.StudyMate3D.updateTheme === "function") {
+        window.StudyMate3D.updateTheme(theme);
     }
 }
 
 const savedTheme = localStorage.getItem("studymate_theme") || "dark";
 applyTheme(savedTheme);
 
+function toggleThemeMode() {
+    const currentTheme = document.documentElement.getAttribute("data-theme") || "dark";
+    const nextTheme = currentTheme === "dark" ? "light" : "dark";
+    applyTheme(nextTheme);
+}
+
 if (themeToggleBtn) {
-    themeToggleBtn.addEventListener("click", () => {
-        const currentTheme = document.documentElement.getAttribute("data-theme") || "dark";
-        const nextTheme = currentTheme === "dark" ? "light" : "dark";
-        applyTheme(nextTheme);
+    themeToggleBtn.addEventListener("click", toggleThemeMode);
+}
+
+if (landingThemeToggle) {
+    landingThemeToggle.addEventListener("click", (e) => {
+        e.stopPropagation();
+        toggleThemeMode();
+    });
+}
+
+if (openLandingBtn) {
+    openLandingBtn.addEventListener("click", () => {
+        if (window.StudyMate3D && typeof window.StudyMate3D.exit === "function") {
+            window.StudyMate3D.exit();
+        }
     });
 }
 
