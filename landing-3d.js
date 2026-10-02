@@ -8,7 +8,7 @@
 
 (function () {
     let scene, camera, renderer;
-    let mainClusterGroup, bgClusterGroup, cardsGroup, studyBadgesGroup;
+    let mainClusterGroup, bgClusterGroup;
     let mainNodesMesh, mainLinesMesh;
     let bgNodesMesh, bgLinesMesh;
     let streamMesh, bokehMesh;
@@ -26,63 +26,23 @@
     let windowHalfX = window.innerWidth / 2;
     let windowHalfY = window.innerHeight / 2;
 
-    // Constellation Config
-    const MAIN_NODE_COUNT = 210;
+    // Constellation Config (Optimized for 60fps locked performance)
+    const MAIN_NODE_COUNT = 115;
     const MAIN_MAX_DIST = 32;
+    const MAIN_MAX_DIST_SQ = MAIN_MAX_DIST * MAIN_MAX_DIST;
     const mainNodes = [];
     let mainLinePositions, mainLineColors;
 
     // Background cluster config
-    const BG_NODE_COUNT = 70;
+    const BG_NODE_COUNT = 35;
     const BG_MAX_DIST = 38;
+    const BG_MAX_DIST_SQ = BG_MAX_DIST * BG_MAX_DIST;
     const bgNodes = [];
     let bgLinePositions, bgLineColors;
 
     // Stream config
-    const STREAM_COUNT = 1000;
+    const STREAM_COUNT = 180;
     const streamNodes = [];
-
-    // Study concepts for morphing vertices
-    const STUDY_CONCEPTS = [
-        { icon: "🧠", title: "NEURAL NETWORKS", tag: "AI Model" },
-        { icon: "📐", title: "CALCULUS ∫dx", tag: "Math" },
-        { icon: "⚛️", title: "QUANTUM LOGIC", tag: "Physics" },
-        { icon: "⚡", title: "CIRCUIT DESIGN", tag: "Electronics" },
-        { icon: "📚", title: "PDF KNOWLEDGE", tag: "Semantic Note" },
-        { icon: "🎓", title: "ACTIVE RECALL", tag: "Exam Arena" },
-        { icon: "📊", title: "ALGORITHMS", tag: "Data Struct" },
-        { icon: "🧪", title: "THERMODYNAMICS", tag: "Engineering" }
-    ];
-    const studyBadgeSprites = [];
-
-    // Floating Holographic Image Cards config (Anchored in right-hand 3D field)
-    const IMAGE_CARDS_DATA = [
-        {
-            url: "assests/card_neural.jpg",
-            title: "NEURAL ARCHITECTURE",
-            desc: "Deep Matrix Multipliers & Backpropagation",
-            pos: { x: 40, y: 16, z: 15 },
-            rot: { x: -0.06, y: -0.22, z: 0.03 },
-            size: { w: 25, h: 18.75 }
-        },
-        {
-            url: "assests/card_math.jpg",
-            title: "SCHRÖDINGER CALCULUS",
-            desc: "Quantum Wave Probability Manifolds",
-            pos: { x: 58, y: -8, z: -5 },
-            rot: { x: 0.08, y: -0.32, z: -0.04 },
-            size: { w: 24, h: 18 }
-        },
-        {
-            url: "assests/card_circuit.jpg",
-            title: "QUANTUM CORE AX-1",
-            desc: "Signal Integrity & Microchip Pinouts",
-            pos: { x: 34, y: -22, z: 18 },
-            rot: { x: 0.12, y: 0.10, z: -0.04 },
-            size: { w: 23, h: 17.25 }
-        }
-    ];
-    const floatingCardMeshes = [];
 
     const landingContainer = document.getElementById("landingPage");
     const canvas = document.getElementById("threeCanvas");
@@ -91,7 +51,7 @@
     const heroCard = document.querySelector(".landing-hero");
     const mainContainer = document.querySelector(".container");
 
-    // Helper: Create soft radial glow particle
+    // Helper: Create soft radial glow particle (Pure Monochrome)
     function createGlowSprite(isBokeh) {
         const c = document.createElement('canvas');
         const size = isBokeh ? 128 : 64;
@@ -103,13 +63,13 @@
         const gradient = ctx.createRadialGradient(center, center, 0, center, center, center);
         if (isBokeh) {
             gradient.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
-            gradient.addColorStop(0.25, 'rgba(120, 210, 255, 0.5)');
-            gradient.addColorStop(0.65, 'rgba(60, 160, 240, 0.12)');
+            gradient.addColorStop(0.3, 'rgba(220, 220, 220, 0.45)');
+            gradient.addColorStop(0.7, 'rgba(160, 160, 160, 0.12)');
             gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
         } else {
             gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
-            gradient.addColorStop(0.2, 'rgba(235, 248, 255, 0.92)');
-            gradient.addColorStop(0.5, 'rgba(110, 205, 255, 0.42)');
+            gradient.addColorStop(0.25, 'rgba(240, 240, 240, 0.92)');
+            gradient.addColorStop(0.6, 'rgba(180, 180, 180, 0.38)');
             gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
         }
 
@@ -118,58 +78,7 @@
         return new THREE.CanvasTexture(c);
     }
 
-    // Helper: Create dynamic 2D study concept billboard badge
-    function createStudyBadgeTexture(concept) {
-        const c = document.createElement('canvas');
-        c.width = 380;
-        c.height = 110;
-        const ctx = c.getContext('2d');
 
-        // Draw rounded translucent glass pill
-        ctx.fillStyle = 'rgba(6, 17, 28, 0.88)';
-        ctx.strokeStyle = 'rgba(112, 214, 255, 0.65)';
-        ctx.lineWidth = 3;
-
-        const r = 24;
-        const x = 5, y = 5, w = c.width - 10, h = c.height - 10;
-        ctx.beginPath();
-        ctx.moveTo(x + r, y);
-        ctx.lineTo(x + w - r, y);
-        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-        ctx.lineTo(x + w, y + h - r);
-        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-        ctx.lineTo(x + r, y + h);
-        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-        ctx.lineTo(x, y + r);
-        ctx.quadraticCurveTo(x, y, x + r, y);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        // Accent glow bar
-        ctx.fillStyle = '#ffbe0b';
-        ctx.beginPath();
-        ctx.arc(x + 28, y + h / 2, 7, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Icon
-        ctx.font = '36px "Outfit", sans-serif';
-        ctx.fillText(concept.icon, x + 48, y + 60);
-
-        // Title
-        ctx.fillStyle = '#f0f9ff';
-        ctx.font = 'bold 24px "Outfit", sans-serif';
-        ctx.fillText(concept.title, x + 98, y + 48);
-
-        // Tag
-        ctx.fillStyle = '#67e8f9';
-        ctx.font = '15px "JetBrains Mono", monospace';
-        ctx.fillText(concept.tag.toUpperCase(), x + 100, y + 74);
-
-        const tex = new THREE.CanvasTexture(c);
-        tex.minFilter = THREE.LinearFilter;
-        return tex;
-    }
 
     function initThree() {
         if (!canvas || !landingContainer) return;
@@ -177,24 +86,24 @@
 
         const isDark = document.documentElement.getAttribute("data-theme") !== "light";
 
-        // 1. Scene setup with rich atmosphere
+        // 1. Scene setup with rich atmosphere (Noir #080808 / Studio White #fafafa)
         scene = new THREE.Scene();
-        scene.fog = new THREE.FogExp2(isDark ? 0x040b13 : 0xeaf2f8, 0.0018);
+        scene.fog = new THREE.FogExp2(isDark ? 0x080808 : 0xfafafa, 0.0018);
 
         // 2. Camera setup
         camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.set(0, 0, 125);
 
-        // 3. Renderer setup
+        // 3. Renderer setup — High performance cap on devicePixelRatio to prevent GPU fillrate choking
         renderer = new THREE.WebGLRenderer({
             canvas: canvas,
             antialias: true,
             alpha: true,
             powerPreference: "high-performance"
         });
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setClearColor(isDark ? 0x040b13 : 0xeaf2f8, 1);
+        renderer.setClearColor(isDark ? 0x080808 : 0xfafafa, 1);
 
         particleTexture = createGlowSprite(false);
         bokehTexture = createGlowSprite(true);
@@ -203,14 +112,8 @@
 
         // 4. Main 3D Neural Constellation Cluster
         mainClusterGroup = new THREE.Group();
-        mainClusterGroup.position.set(isMobile ? 0 : 36, 0, 0);
+        mainClusterGroup.position.set(isMobile ? 0 : 40, 0, 0);
         scene.add(mainClusterGroup);
-
-        studyBadgesGroup = new THREE.Group();
-        mainClusterGroup.add(studyBadgesGroup);
-
-        cardsGroup = new THREE.Group();
-        mainClusterGroup.add(cardsGroup);
 
         const mainNodeGeo = new THREE.BufferGeometry();
         const mainNodePositions = new Float32Array(MAIN_NODE_COUNT * 3);
@@ -229,26 +132,23 @@
             mainNodePositions[i * 3 + 1] = y;
             mainNodePositions[i * 3 + 2] = z;
 
-            const isGold = Math.random() > 0.85;
+            const isHighlight = Math.random() > 0.85;
             mainNodes.push({
                 x: x, y: y, z: z,
                 vx: (Math.random() - 0.5) * 0.12,
                 vy: (Math.random() - 0.5) * 0.12,
                 vz: (Math.random() - 0.5) * 0.12,
                 radius: radius,
-                isGold: isGold,
-                badgeIndex: -1
+                isHighlight: isHighlight
             });
 
-            if (isGold) {
-                mainNodeColors[i * 3] = 1.0;
-                mainNodeColors[i * 3 + 1] = 0.78;
-                mainNodeColors[i * 3 + 2] = 0.25;
-            } else {
-                mainNodeColors[i * 3] = 0.88;
-                mainNodeColors[i * 3 + 1] = 0.96;
-                mainNodeColors[i * 3 + 2] = 1.0;
-            }
+            // Pure monochrome star node shades
+            const val = isDark 
+                ? (isHighlight ? 1.0 : 0.82) 
+                : (isHighlight ? 0.12 : 0.38);
+            mainNodeColors[i * 3] = val;
+            mainNodeColors[i * 3 + 1] = val;
+            mainNodeColors[i * 3 + 2] = val;
         }
 
         mainNodeGeo.setAttribute('position', new THREE.BufferAttribute(mainNodePositions, 3));
@@ -285,101 +185,7 @@
         mainLinesMesh = new THREE.LineSegments(mainLineGeo, mainLineMat);
         mainClusterGroup.add(mainLinesMesh);
 
-        // 5. Create Study Concept Badges on Anchor Vertices
-        STUDY_CONCEPTS.forEach((concept, idx) => {
-            const anchorNodeIdx = Math.floor((idx + 1) * (MAIN_NODE_COUNT / (STUDY_CONCEPTS.length + 1)));
-            mainNodes[anchorNodeIdx].badgeIndex = idx;
 
-            const badgeTex = createStudyBadgeTexture(concept);
-            const badgeMat = new THREE.SpriteMaterial({
-                map: badgeTex,
-                transparent: true,
-                opacity: 0.9,
-                depthWrite: false,
-                blending: isDark ? THREE.AdditiveBlending : THREE.NormalBlending
-            });
-            const sprite = new THREE.Sprite(badgeMat);
-            sprite.scale.set(13, 3.8, 1);
-            sprite.position.set(mainNodes[anchorNodeIdx].x, mainNodes[anchorNodeIdx].y + 2.5, mainNodes[anchorNodeIdx].z);
-            studyBadgesGroup.add(sprite);
-
-            studyBadgeSprites.push({
-                sprite: sprite,
-                nodeIdx: anchorNodeIdx,
-                baseScale: { w: 13, h: 3.8 },
-                phase: idx * 0.7
-            });
-        });
-
-        // 6. Floating Holographic Engineering Image Cards (Random study image panels)
-        const textureLoader = new THREE.TextureLoader();
-        IMAGE_CARDS_DATA.forEach((cardData, idx) => {
-            textureLoader.load(cardData.url, (loadedTexture) => {
-                loadedTexture.generateMipmaps = true;
-                loadedTexture.minFilter = THREE.LinearMipmapLinearFilter;
-
-                const cardPlaneGeo = new THREE.PlaneGeometry(cardData.size.w, cardData.size.h);
-
-                // Front image plane
-                const cardMat = new THREE.MeshBasicMaterial({
-                    map: loadedTexture,
-                    transparent: true,
-                    opacity: isDark ? 0.88 : 0.78,
-                    side: THREE.DoubleSide
-                });
-                const cardMesh = new THREE.Mesh(cardPlaneGeo, cardMat);
-                cardMesh.position.set(cardData.pos.x, cardData.pos.y, cardData.pos.z);
-                cardMesh.rotation.set(cardData.rot.x, cardData.rot.y, cardData.rot.z);
-
-                // Wireframe glowing cyan border around the glass card
-                const borderGeo = new THREE.EdgesGeometry(cardPlaneGeo);
-                const borderMat = new THREE.LineBasicMaterial({
-                    color: isDark ? 0x70d6ff : 0x0284c7,
-                    transparent: true,
-                    opacity: 0.65,
-                    blending: isDark ? THREE.AdditiveBlending : THREE.NormalBlending
-                });
-                const borderLines = new THREE.LineSegments(borderGeo, borderMat);
-                cardMesh.add(borderLines);
-
-                // Label tag above the card
-                const labelCanvas = document.createElement('canvas');
-                labelCanvas.width = 300;
-                labelCanvas.height = 60;
-                const lCtx = labelCanvas.getContext('2d');
-                lCtx.fillStyle = 'rgba(6, 17, 28, 0.85)';
-                lCtx.fillRect(0, 0, 300, 60);
-                lCtx.strokeStyle = 'rgba(112, 214, 255, 0.5)';
-                lCtx.strokeRect(0, 0, 300, 60);
-                lCtx.fillStyle = '#67e8f9';
-                lCtx.font = 'bold 20px "Outfit", sans-serif';
-                lCtx.fillText(cardData.title, 14, 28);
-                lCtx.fillStyle = '#94a3b8';
-                lCtx.font = '12px "JetBrains Mono", monospace';
-                lCtx.fillText(cardData.desc, 14, 48);
-
-                const labelTex = new THREE.CanvasTexture(labelCanvas);
-                const labelMat = new THREE.SpriteMaterial({
-                    map: labelTex,
-                    transparent: true,
-                    opacity: 0.95
-                });
-                const labelSprite = new THREE.Sprite(labelMat);
-                labelSprite.scale.set(cardData.size.w * 0.9, 4.5, 1);
-                labelSprite.position.set(0, cardData.size.h / 2 + 3.2, 0.2);
-                cardMesh.add(labelSprite);
-
-                cardsGroup.add(cardMesh);
-
-                floatingCardMeshes.push({
-                    mesh: cardMesh,
-                    basePos: { ...cardData.pos },
-                    baseRot: { ...cardData.rot },
-                    speed: 0.6 + idx * 0.25,
-                    phase: idx * 1.5
-                });
-            });
-        });
 
         // 7. Secondary Deep Background Constellation
         bgClusterGroup = new THREE.Group();
@@ -411,9 +217,10 @@
                 radius: radius
             });
 
-            bgNodeColors[i * 3] = 0.55;
-            bgNodeColors[i * 3 + 1] = 0.75;
-            bgNodeColors[i * 3 + 2] = 0.95;
+            const bgVal = isDark ? 0.6 : 0.35;
+            bgNodeColors[i * 3] = bgVal;
+            bgNodeColors[i * 3 + 1] = bgVal;
+            bgNodeColors[i * 3 + 2] = bgVal;
         }
 
         bgNodeGeo.setAttribute('position', new THREE.BufferAttribute(bgNodePositions, 3));
@@ -472,19 +279,17 @@
             });
 
             const rnd = Math.random();
-            if (rnd > 0.88) {
-                streamColors[i * 3] = 1.0;
-                streamColors[i * 3 + 1] = 0.82;
-                streamColors[i * 3 + 2] = 0.35;
+            let c;
+            if (rnd > 0.8) {
+                c = isDark ? 1.0 : 0.15;
             } else if (rnd > 0.35) {
-                streamColors[i * 3] = 0.45;
-                streamColors[i * 3 + 1] = 0.78;
-                streamColors[i * 3 + 2] = 0.98;
+                c = isDark ? 0.68 : 0.42;
             } else {
-                streamColors[i * 3] = 0.9;
-                streamColors[i * 3 + 1] = 0.95;
-                streamColors[i * 3 + 2] = 1.0;
+                c = isDark ? 0.88 : 0.25;
             }
+            streamColors[i * 3] = c;
+            streamColors[i * 3 + 1] = c;
+            streamColors[i * 3 + 2] = c;
         }
 
         streamGeo.setAttribute('position', new THREE.BufferAttribute(streamPositions, 3));
@@ -517,8 +322,8 @@
             size: 15.0,
             map: bokehTexture,
             transparent: true,
-            opacity: isDark ? 0.32 : 0.18,
-            color: isDark ? 0x90d5ff : 0x2266aa,
+            opacity: isDark ? 0.25 : 0.14,
+            color: isDark ? 0xffffff : 0x333333,
             blending: isDark ? THREE.AdditiveBlending : THREE.NormalBlending,
             depthWrite: false
         });
@@ -557,7 +362,7 @@
 
         const isMobile = window.innerWidth < 900;
         if (mainClusterGroup) {
-            mainClusterGroup.position.x = isMobile ? 0 : 36;
+            mainClusterGroup.position.x = isMobile ? 0 : 40;
         }
         if (bgClusterGroup) {
             bgClusterGroup.position.x = isMobile ? 0 : -35;
@@ -584,14 +389,25 @@
     function updateTheme(theme) {
         if (!scene || !renderer) return;
         const isDark = theme !== "light";
-        scene.fog.color.setHex(isDark ? 0x040b13 : 0xeaf2f8);
-        renderer.setClearColor(isDark ? 0x040b13 : 0xeaf2f8, 1);
+        scene.fog.color.setHex(isDark ? 0x080808 : 0xfafafa);
+        renderer.setClearColor(isDark ? 0x080808 : 0xfafafa, 1);
 
         const blending = isDark ? THREE.AdditiveBlending : THREE.NormalBlending;
 
         if (mainNodesMesh) {
             mainNodesMesh.material.opacity = isDark ? 0.96 : 0.85;
             mainNodesMesh.material.blending = blending;
+            const colors = mainNodesMesh.geometry.attributes.color.array;
+            for (let i = 0; i < MAIN_NODE_COUNT; i++) {
+                const node = mainNodes[i];
+                const val = isDark 
+                    ? (node.isHighlight ? 1.0 : 0.82) 
+                    : (node.isHighlight ? 0.12 : 0.38);
+                colors[i * 3] = val;
+                colors[i * 3 + 1] = val;
+                colors[i * 3 + 2] = val;
+            }
+            mainNodesMesh.geometry.attributes.color.needsUpdate = true;
         }
         if (mainLinesMesh) {
             mainLinesMesh.material.opacity = isDark ? 0.48 : 0.38;
@@ -600,6 +416,14 @@
         if (bgNodesMesh) {
             bgNodesMesh.material.opacity = isDark ? 0.45 : 0.28;
             bgNodesMesh.material.blending = blending;
+            const colors = bgNodesMesh.geometry.attributes.color.array;
+            const bgVal = isDark ? 0.6 : 0.35;
+            for (let i = 0; i < BG_NODE_COUNT; i++) {
+                colors[i * 3] = bgVal;
+                colors[i * 3 + 1] = bgVal;
+                colors[i * 3 + 2] = bgVal;
+            }
+            bgNodesMesh.geometry.attributes.color.needsUpdate = true;
         }
         if (bgLinesMesh) {
             bgLinesMesh.material.opacity = isDark ? 0.24 : 0.18;
@@ -608,16 +432,26 @@
         if (streamMesh) {
             streamMesh.material.opacity = isDark ? 0.62 : 0.38;
             streamMesh.material.blending = blending;
+            const colors = streamMesh.geometry.attributes.color.array;
+            for (let i = 0; i < STREAM_COUNT; i++) {
+                const c = isDark ? 0.85 : 0.3;
+                colors[i * 3] = c;
+                colors[i * 3 + 1] = c;
+                colors[i * 3 + 2] = c;
+            }
+            streamMesh.geometry.attributes.color.needsUpdate = true;
         }
         if (bokehMesh) {
-            bokehMesh.material.opacity = isDark ? 0.32 : 0.18;
-            bokehMesh.material.color.setHex(isDark ? 0x90d5ff : 0x2266aa);
+            bokehMesh.material.opacity = isDark ? 0.25 : 0.14;
+            bokehMesh.material.color.setHex(isDark ? 0xffffff : 0x333333);
+            bokehMesh.material.blending = blending;
         }
     }
 
     let warpProgress = 0;
 
     function animate() {
+        if (isAppActive) return;
         animationFrameId = requestAnimationFrame(animate);
 
         const delta = clock.getDelta();
@@ -664,15 +498,19 @@
 
                 posAttr.setXYZ(i, node.x, node.y, node.z);
 
-                // Compute filaments
+                // Compute filaments with fast early rejection bounding-box
                 for (let j = i + 1; j < MAIN_NODE_COUNT; j++) {
                     const other = mainNodes[j];
                     const dx = node.x - other.x;
+                    if (dx > MAIN_MAX_DIST || dx < -MAIN_MAX_DIST) continue;
                     const dy = node.y - other.y;
+                    if (dy > MAIN_MAX_DIST || dy < -MAIN_MAX_DIST) continue;
                     const dz = node.z - other.z;
-                    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                    if (dz > MAIN_MAX_DIST || dz < -MAIN_MAX_DIST) continue;
 
-                    if (dist < MAIN_MAX_DIST) {
+                    const distSq = dx * dx + dy * dy + dz * dz;
+                    if (distSq < MAIN_MAX_DIST_SQ) {
+                        const dist = Math.sqrt(distSq);
                         const alpha = 1 - (dist / MAIN_MAX_DIST);
 
                         mainLinePositions[lineIdx * 3] = node.x;
@@ -683,18 +521,18 @@
                         mainLinePositions[(lineIdx + 1) * 3 + 1] = other.y;
                         mainLinePositions[(lineIdx + 1) * 3 + 2] = other.z;
 
-                        const isGoldLine = node.isGold || other.isGold;
-                        const r = isGoldLine ? 0.95 * alpha : (isDark ? 0.42 * alpha : 0.12 * alpha);
-                        const g = isGoldLine ? 0.82 * alpha : (isDark ? 0.78 * alpha : 0.28 * alpha);
-                        const b = isGoldLine ? 0.45 * alpha : (isDark ? 0.98 * alpha : 0.45 * alpha);
+                        const isHighlightLine = node.isHighlight || other.isHighlight;
+                        const val = isDark 
+                            ? (isHighlightLine ? 0.92 : 0.52) * alpha
+                            : (isHighlightLine ? 0.18 : 0.45) * alpha;
 
-                        mainLineColors[lineIdx * 3] = r;
-                        mainLineColors[lineIdx * 3 + 1] = g;
-                        mainLineColors[lineIdx * 3 + 2] = b;
+                        mainLineColors[lineIdx * 3] = val;
+                        mainLineColors[lineIdx * 3 + 1] = val;
+                        mainLineColors[lineIdx * 3 + 2] = val;
 
-                        mainLineColors[(lineIdx + 1) * 3] = r;
-                        mainLineColors[(lineIdx + 1) * 3 + 1] = g;
-                        mainLineColors[(lineIdx + 1) * 3 + 2] = b;
+                        mainLineColors[(lineIdx + 1) * 3] = val;
+                        mainLineColors[(lineIdx + 1) * 3 + 1] = val;
+                        mainLineColors[(lineIdx + 1) * 3 + 2] = val;
 
                         lineIdx += 2;
                     }
@@ -707,29 +545,7 @@
             mainLinesMesh.geometry.attributes.color.needsUpdate = true;
         }
 
-        // 2. Animate Study Concept Badges (Morphing vertices)
-        studyBadgeSprites.forEach(item => {
-            const node = mainNodes[item.nodeIdx];
-            if (node) {
-                item.sprite.position.set(node.x, node.y + 2.2, node.z);
 
-                // Gentle breathing pulse
-                const pulse = 1 + Math.sin(time * 2.2 + item.phase) * 0.08;
-                item.sprite.scale.set(item.baseScale.w * pulse, item.baseScale.h * pulse, 1);
-            }
-        });
-
-        // 3. Animate Floating Holographic Engineering Cards
-        floatingCardMeshes.forEach(item => {
-            const m = item.mesh;
-            // Float gently with sine wave
-            m.position.y = item.basePos.y + Math.sin(time * item.speed + item.phase) * 3.5;
-            m.position.x = item.basePos.x + Math.cos(time * item.speed * 0.7 + item.phase) * 2.0;
-
-            // Parallax 3D tilt
-            m.rotation.x = item.baseRot.x + currentRotationX * 0.4;
-            m.rotation.y = item.baseRot.y + currentRotationY * 0.6;
-        });
 
         // 4. Animate Secondary Background Cluster
         if (bgClusterGroup) {
@@ -756,8 +572,16 @@
 
                 for (let j = i + 1; j < BG_NODE_COUNT; j++) {
                     const other = bgNodes[j];
-                    const dist = Math.hypot(node.x - other.x, node.y - other.y, node.z - other.z);
-                    if (dist < BG_MAX_DIST) {
+                    const dx = node.x - other.x;
+                    if (dx > BG_MAX_DIST || dx < -BG_MAX_DIST) continue;
+                    const dy = node.y - other.y;
+                    if (dy > BG_MAX_DIST || dy < -MAIN_MAX_DIST) continue;
+                    const dz = node.z - other.z;
+                    if (dz > BG_MAX_DIST || dz < -BG_MAX_DIST) continue;
+
+                    const distSq = dx * dx + dy * dy + dz * dz;
+                    if (distSq < BG_MAX_DIST_SQ) {
+                        const dist = Math.sqrt(distSq);
                         const alpha = (1 - dist / BG_MAX_DIST) * 0.65;
 
                         bgLinePositions[bgLineIdx * 3] = node.x;
@@ -768,14 +592,14 @@
                         bgLinePositions[(bgLineIdx + 1) * 3 + 1] = other.y;
                         bgLinePositions[(bgLineIdx + 1) * 3 + 2] = other.z;
 
-                        const val = isDark ? 0.35 * alpha : 0.15 * alpha;
-                        bgLineColors[bgLineIdx * 3] = val * 0.7;
+                        const val = isDark ? 0.32 * alpha : 0.22 * alpha;
+                        bgLineColors[bgLineIdx * 3] = val;
                         bgLineColors[bgLineIdx * 3 + 1] = val;
-                        bgLineColors[bgLineIdx * 3 + 2] = val * 1.3;
+                        bgLineColors[bgLineIdx * 3 + 2] = val;
 
-                        bgLineColors[(bgLineIdx + 1) * 3] = val * 0.7;
+                        bgLineColors[(bgLineIdx + 1) * 3] = val;
                         bgLineColors[(bgLineIdx + 1) * 3 + 1] = val;
-                        bgLineColors[(bgLineIdx + 1) * 3 + 2] = val * 1.3;
+                        bgLineColors[(bgLineIdx + 1) * 3 + 2] = val;
 
                         bgLineIdx += 2;
                     }
@@ -847,17 +671,15 @@
         isWarping = false;
         isAppActive = true;
 
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+
         landingContainer.classList.add("landing-hidden");
         if (mainContainer) {
             mainContainer.classList.add("workspace-active");
         }
-
-        setTimeout(() => {
-            if (isAppActive && animationFrameId) {
-                cancelAnimationFrame(animationFrameId);
-                animationFrameId = null;
-            }
-        }, 700);
     }
 
     function exitToLanding() {
@@ -883,6 +705,18 @@
             animate();
         }
     }
+
+    document.addEventListener("visibilitychange", () => {
+        if (document.hidden) {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+        } else if (!isAppActive && !animationFrameId) {
+            clock.start();
+            animate();
+        }
+    });
 
     window.StudyMate3D = {
         enter: enterApp,
