@@ -2443,7 +2443,7 @@ function showSection(section, activeButton) {
 
     if (section === chatSection) {
         section.style.display = "flex";
-        if (activeSectionBreadcrumb) activeSectionBreadcrumb.textContent = "AI Assistant";
+        if (activeSectionBreadcrumb) activeSectionBreadcrumb.textContent = "Study Assistant";
     } else if (section === notesSection) {
         section.style.display = "block";
         if (activeSectionBreadcrumb) activeSectionBreadcrumb.textContent = "Study Notes";
@@ -2487,7 +2487,6 @@ showSection(chatSection, chatNav);
 const themeToggleBtn = document.getElementById("themeToggleBtn");
 const themeMoonIcon = document.getElementById("themeMoonIcon");
 const themeSunIcon = document.getElementById("themeSunIcon");
-
 const landingThemeToggle = document.getElementById("landingThemeToggle");
 const openLandingBtn = document.getElementById("openLandingBtn");
 
@@ -2595,7 +2594,7 @@ if (startQuizCtaBtn && quizBtn) {
     startQuizCtaBtn.addEventListener("click", () => {
         if (!pdfText || pdfText.trim() === "") {
             showSection(notesSection, notesNav);
-            alert("Please upload your PDF study notes first so AI can generate practice questions!");
+            alert("Please upload your PDF study notes first before generating a quiz.");
             return;
         }
         quizBtn.click();
